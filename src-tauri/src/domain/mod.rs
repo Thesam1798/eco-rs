@@ -5,7 +5,8 @@
 mod ecoindex;
 mod lighthouse;
 mod metrics;
+pub mod quantiles;
 
-pub use ecoindex::{EcoIndexGrade, EcoIndexResult};
+pub use ecoindex::EcoIndexResult;
 pub use lighthouse::{CoreWebVitals, LighthouseResult, MetricStatus, PerformanceMetrics};
-pub use metrics::{PageMetrics, ResourceMetrics, ResourceType};
+pub use metrics::PageMetrics;
