@@ -15,7 +15,8 @@ import type {
   AccessibilityIssue,
   BestPracticesMetrics,
   SeoMetrics,
-  LH,
+  LHResult,
+  LHAuditResult,
 } from './types.js';
 
 /**
@@ -24,7 +25,7 @@ import type {
 export async function runAnalysis(
   url: string,
   chromePath: string,
-  includeHtml: boolean = false
+  includeHtml = false
 ): Promise<AnalysisResult | AnalysisError> {
   try {
     const { flags, config } = createLighthouseConfig(chromePath);
@@ -44,7 +45,7 @@ export async function runAnalysis(
       };
     }
 
-    const lhr = result.lhr as unknown as LH.Result;
+    const lhr = result.lhr as unknown as LHResult;
 
     // Extraire les métriques EcoIndex du plugin
     const ecoindex = extractEcoIndexMetrics(lhr);
@@ -98,7 +99,7 @@ export async function runAnalysis(
 /**
  * Extrait les métriques `EcoIndex` du rapport Lighthouse.
  */
-function extractEcoIndexMetrics(lhr: LH.Result): EcoIndexMetrics {
+function extractEcoIndexMetrics(lhr: LHResult): EcoIndexMetrics {
   // Le plugin ecoindex ajoute une catégorie 'lighthouse-plugin-ecoindex'
   const ecoCategory = lhr.categories['lighthouse-plugin-ecoindex'];
 
@@ -152,7 +153,7 @@ function extractEcoIndexMetrics(lhr: LH.Result): EcoIndexMetrics {
 /**
  * Extrait les métriques Performance.
  */
-function extractPerformanceMetrics(lhr: LH.Result): PerformanceMetrics {
+function extractPerformanceMetrics(lhr: LHResult): PerformanceMetrics {
   const audits = lhr.audits;
   const perfCategory = lhr.categories['performance'];
 
@@ -179,7 +180,7 @@ function extractPerformanceMetrics(lhr: LH.Result): PerformanceMetrics {
 /**
  * Extrait les métriques Accessibility.
  */
-function extractAccessibilityMetrics(lhr: LH.Result): AccessibilityMetrics {
+function extractAccessibilityMetrics(lhr: LHResult): AccessibilityMetrics {
   const a11yCategory = lhr.categories['accessibility'];
   const audits = lhr.audits;
 
@@ -219,7 +220,7 @@ function mapA11yWeight(weight: number | undefined): AccessibilityIssue['impact']
 /**
  * Extrait les métriques Best Practices.
  */
-function extractBestPracticesMetrics(lhr: LH.Result): BestPracticesMetrics {
+function extractBestPracticesMetrics(lhr: LHResult): BestPracticesMetrics {
   const bpCategory = lhr.categories['best-practices'];
   return {
     bestPracticesScore: Math.round((bpCategory?.score || 0) * 100),
@@ -229,7 +230,7 @@ function extractBestPracticesMetrics(lhr: LH.Result): BestPracticesMetrics {
 /**
  * Extrait les métriques SEO.
  */
-function extractSeoMetrics(lhr: LH.Result): SeoMetrics {
+function extractSeoMetrics(lhr: LHResult): SeoMetrics {
   const seoCategory = lhr.categories['seo'];
   return {
     seoScore: Math.round((seoCategory?.score || 0) * 100),
@@ -240,7 +241,7 @@ function extractSeoMetrics(lhr: LH.Result): SeoMetrics {
  * Extrait une valeur numérique d'un audit.
  */
 function extractNumericValue(
-  audit: LH.Audit.Result | undefined,
+  audit: LHAuditResult | undefined,
   defaultValue: number
 ): number {
   if (!audit) return defaultValue;
@@ -270,7 +271,7 @@ function extractNumericValue(
  * Extrait une valeur string d'un audit.
  */
 function extractStringValue(
-  audit: LH.Audit.Result | undefined,
+  audit: LHAuditResult | undefined,
   defaultValue: string
 ): string {
   if (!audit) return defaultValue;
