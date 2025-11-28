@@ -26,6 +26,7 @@
     "download:chrome:mac-x64": "node scripts/download-chrome.js mac-x64",
     "download:chrome:mac-arm": "node scripts/download-chrome.js mac-arm64",
     "check": "pnpm lint:all && pnpm test:ci && pnpm build:all",
+    "prepare:release": "node scripts/prepare-release.js",
     "tauri": "tauri",
     "prepare": "husky"
   },
