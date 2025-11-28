@@ -24,6 +24,20 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Chrome DevTools Protocol
+chromiumoxide = { version = "0.7", features = ["tokio-runtime"], default-features = false }
+
+[features]
+default = []
+integration-tests = []
+
 # Linting configuration
 [lints.rust]
 unsafe_code = "deny"
