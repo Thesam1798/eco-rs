@@ -19,9 +19,10 @@
     "baseUrl": ".",
     "paths": {
       "@core/*": ["src/app/core/*"],
+      "@shared": ["src/app/shared/index.ts"],
       "@shared/*": ["src/app/shared/*"],
       "@features/*": ["src/app/features/*"],
-      "@models/*": ["src/app/models/*"]
+      "@models": ["src/app/core/models/index.ts"]
     }
   },
   "angularCompilerOptions": {
