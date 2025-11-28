@@ -4,6 +4,7 @@ import tseslint from 'typescript-eslint';
 import angular from '@angular-eslint/eslint-plugin';
 import angularTemplate from '@angular-eslint/eslint-plugin-template';
 import angularTemplateParser from '@angular-eslint/template-parser';
+import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   // Global ignores
@@ -96,5 +97,8 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
     },
-  }
+  },
+
+  // Prettier - MUST be last to override conflicting rules
+  prettier
 );
