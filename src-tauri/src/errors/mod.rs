@@ -1,4 +1,4 @@
-//! Error types for the EcoIndex Analyzer application.
+//! Error types for the `EcoIndex` Analyzer application.
 //!
 //! This module provides unified error handling using `thiserror`.
 

@@ -32,12 +32,13 @@ pub struct LighthouseResult {
 impl LighthouseResult {
     /// Check if all Core Web Vitals pass.
     #[must_use]
-    pub fn passes_core_web_vitals(&self) -> bool {
+    pub const fn passes_core_web_vitals(&self) -> bool {
         self.core_web_vitals.passes()
     }
 
     /// Calculate average of all scores.
     #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn average_score(&self) -> u8 {
         let total = u16::from(self.performance)
             + u16::from(self.accessibility)
@@ -75,7 +76,7 @@ impl CoreWebVitals {
 
     /// Check if all metrics pass "Good" thresholds.
     #[must_use]
-    pub fn passes(&self) -> bool {
+    pub const fn passes(&self) -> bool {
         self.lcp_ms <= Self::LCP_GOOD_MS
             && self.fid_ms <= Self::FID_GOOD_MS
             && self.cls <= Self::CLS_GOOD
@@ -83,19 +84,19 @@ impl CoreWebVitals {
 
     /// Get LCP status.
     #[must_use]
-    pub fn lcp_status(&self) -> MetricStatus {
+    pub const fn lcp_status(&self) -> MetricStatus {
         MetricStatus::from_thresholds(self.lcp_ms, Self::LCP_GOOD_MS, 4000)
     }
 
     /// Get FID status.
     #[must_use]
-    pub fn fid_status(&self) -> MetricStatus {
+    pub const fn fid_status(&self) -> MetricStatus {
         MetricStatus::from_thresholds(self.fid_ms, Self::FID_GOOD_MS, 300)
     }
 
     /// Get CLS status.
     #[must_use]
-    pub fn cls_status(&self) -> MetricStatus {
+    pub const fn cls_status(&self) -> MetricStatus {
         MetricStatus::from_thresholds(self.cls, Self::CLS_GOOD, 250)
     }
 }
@@ -133,7 +134,7 @@ pub enum MetricStatus {
 
 impl MetricStatus {
     /// Determine status from value and thresholds.
-    fn from_thresholds(value: u32, good: u32, poor: u32) -> Self {
+    const fn from_thresholds(value: u32, good: u32, poor: u32) -> Self {
         if value <= good {
             Self::Good
         } else if value <= poor {

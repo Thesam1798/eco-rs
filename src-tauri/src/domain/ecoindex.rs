@@ -1,10 +1,10 @@
-//! EcoIndex domain types.
+//! `EcoIndex` domain types.
 //!
-//! Types for representing EcoIndex analysis results and grades.
+//! Types for representing `EcoIndex` analysis results and grades.
 
 use serde::{Deserialize, Serialize};
 
-/// EcoIndex grade from A (best) to G (worst).
+/// `EcoIndex` grade from A (best) to G (worst).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum EcoIndexGrade {
@@ -74,13 +74,13 @@ impl Default for EcoIndexGrade {
     }
 }
 
-/// Result of an EcoIndex analysis.
+/// Result of an `EcoIndex` analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EcoIndexResult {
     /// URL of the analyzed page.
     pub url: String,
 
-    /// EcoIndex score (0-100).
+    /// `EcoIndex` score (0-100).
     pub score: f64,
 
     /// Grade based on score.
@@ -103,7 +103,7 @@ pub struct EcoIndexResult {
 }
 
 impl EcoIndexResult {
-    /// Create a new `EcoIndexResult` from raw metrics.
+    /// Create a new [`EcoIndexResult`] from raw metrics.
     #[must_use]
     pub fn new(url: String, dom_size: u32, request_count: u32, page_size_kb: f64) -> Self {
         let score = Self::calculate_score(dom_size, request_count, page_size_kb);
@@ -122,7 +122,7 @@ impl EcoIndexResult {
         }
     }
 
-    /// Calculate EcoIndex score using the official formula.
+    /// Calculate `EcoIndex` score using the official formula.
     ///
     /// Formula based on: <https://www.ecoindex.fr/comment-ca-marche/>
     fn calculate_score(dom: u32, req: u32, size_kb: f64) -> f64 {
@@ -132,7 +132,8 @@ impl EcoIndexResult {
         let size_q = Self::quantile(size_kb, 0.0, 3000.0);
 
         // EcoIndex formula: 100 - 5*(3*dom_q + 2*req_q + size_q)/6
-        let raw_score = 100.0 - 5.0 * (3.0 * dom_q + 2.0 * req_q + size_q) / 6.0;
+        let weighted_sum = 3.0f64.mul_add(dom_q, 2.0f64.mul_add(req_q, size_q));
+        let raw_score = 5.0f64.mul_add(-weighted_sum / 6.0, 100.0);
         raw_score.clamp(0.0, 100.0)
     }
 
@@ -144,8 +145,8 @@ impl EcoIndexResult {
     /// Calculate environmental impact from score.
     fn calculate_environmental_impact(score: f64) -> (f64, f64) {
         // Based on EcoIndex methodology
-        let co2 = 2.0 + (100.0 - score) * 0.02; // grams
-        let water = 3.0 + (100.0 - score) * 0.03; // centiliters
+        let co2 = (100.0 - score).mul_add(0.02, 2.0); // grams
+        let water = (100.0 - score).mul_add(0.03, 3.0); // centiliters
         (co2, water)
     }
 }

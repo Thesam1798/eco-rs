@@ -2,7 +2,7 @@
 //!
 //! This module configures and builds the Tauri application with all plugins and handlers.
 
-use tauri::{App, Manager};
+use tauri::App;
 
 /// Configure and build the Tauri application.
 ///
