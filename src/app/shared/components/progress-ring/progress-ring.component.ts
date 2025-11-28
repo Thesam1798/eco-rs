@@ -1,5 +1,5 @@
 import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
-import { getColorForScore } from '../../core/utils';
+import { getColorForScore } from '../../../core/utils';
 
 @Component({
   selector: 'app-progress-ring',

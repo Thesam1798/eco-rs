@@ -96,24 +96,21 @@ export type AnalysisOutput = AnalysisResult | AnalysisError;
 /**
  * Types Lighthouse minimaux pour éviter d'importer tout lighthouse
  */
-export namespace LH {
-  export interface Result {
-    finalDisplayedUrl?: string;
-    categories: Record<string, Category | undefined>;
-    audits: Record<string, Audit.Result>;
-  }
-
-  export interface Category {
-    score: number | null;
-    auditRefs?: Array<{ id: string; weight?: number }>;
-  }
-
-  export namespace Audit {
-    export interface Result {
-      score: number | null;
-      numericValue?: number;
-      displayValue?: string;
-      title?: string;
-    }
-  }
+export interface LHAuditResult {
+  score: number | null;
+  numericValue?: number;
+  displayValue?: string;
+  title?: string;
 }
+
+export interface LHCategory {
+  score: number | null;
+  auditRefs?: { id: string; weight?: number }[];
+}
+
+export interface LHResult {
+  finalDisplayedUrl?: string;
+  categories: Record<string, LHCategory | undefined>;
+  audits: Record<string, LHAuditResult>;
+}
+

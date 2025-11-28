@@ -1,6 +1,6 @@
 import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
-import type { EcoIndexGrade } from '../../core/models';
-import { getGradeBgClass } from '../../core/utils';
+import type { EcoIndexGrade } from '../../../core/models';
+import { getGradeBgClass } from '../../../core/utils';
 
 @Component({
   selector: 'app-score-badge',
