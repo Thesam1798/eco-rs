@@ -1,0 +1,43 @@
+@import 'tailwindcss';
+
+@theme {
+  /* EcoIndex Grade Colors */
+  --color-grade-a: #349a47;
+  --color-grade-b: #51b84b;
+  --color-grade-c: #cadb2a;
+  --color-grade-d: #f6eb15;
+  --color-grade-e: #fecd06;
+  --color-grade-f: #f99839;
+  --color-grade-g: #ed2124;
+
+  /* Primary Palette (Eco Green) */
+  --color-primary-50: #ecfdf5;
+  --color-primary-100: #d1fae5;
+  --color-primary-200: #a7f3d0;
+  --color-primary-300: #6ee7b7;
+  --color-primary-400: #34d399;
+  --color-primary-500: #10b981;
+  --color-primary-600: #059669;
+  --color-primary-700: #047857;
+  --color-primary-800: #065f46;
+  --color-primary-900: #064e3b;
+
+  /* Neutral Palette */
+  --color-surface: #ffffff;
+  --color-surface-elevated: #f9fafb;
+  --color-border: #e5e7eb;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Desktop Spacing */
+  --spacing-desktop-sm: 0.75rem;
+  --spacing-desktop-md: 1.25rem;
+  --spacing-desktop-lg: 2rem;
+
+  /* Shadows */
+  --shadow-card: 0 2px 8px -2px rgb(0 0 0 / 0.1);
+}
