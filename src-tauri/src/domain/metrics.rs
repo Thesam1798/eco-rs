@@ -1,95 +1,57 @@
-//! Web page metrics models.
+//! Page metrics for `EcoIndex` calculation.
 
 use serde::{Deserialize, Serialize};
 
-/// Metrics collected from a web page analysis.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Raw metrics collected from a web page for `EcoIndex` calculation.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct PageMetrics {
-    /// URL of the analyzed page.
-    pub url: String,
-
-    /// Total page size in bytes.
-    pub page_size: u64,
-
-    /// Number of HTTP requests made.
-    pub request_count: u32,
-
-    /// Number of DOM elements.
+    /// Number of DOM elements (excluding SVG children).
     pub dom_elements: u32,
-
-    /// Page load time in milliseconds.
-    pub load_time_ms: u64,
-
-    /// Breakdown of resources by type.
-    pub resources: Vec<ResourceMetrics>,
+    /// Number of HTTP requests.
+    pub requests: u32,
+    /// Total page size in kilobytes.
+    pub size_kb: f64,
 }
 
 impl PageMetrics {
-    /// Create a new `PageMetrics` instance.
+    /// Creates a new `PageMetrics` instance.
     #[must_use]
-    pub const fn new(url: String) -> Self {
+    pub const fn new(dom_elements: u32, requests: u32, size_kb: f64) -> Self {
         Self {
-            url,
-            page_size: 0,
-            request_count: 0,
-            dom_elements: 0,
-            load_time_ms: 0,
-            resources: Vec::new(),
+            dom_elements,
+            requests,
+            size_kb,
         }
     }
+}
 
-    /// Calculate the total size of all resources.
-    #[must_use]
-    pub fn total_resource_size(&self) -> u64 {
-        self.resources.iter().map(|r| r.size).sum()
+impl Default for PageMetrics {
+    fn default() -> Self {
+        Self {
+            dom_elements: 0,
+            requests: 0,
+            size_kb: 0.0,
+        }
     }
 }
 
-/// Metrics for a single resource.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResourceMetrics {
-    /// Resource URL.
-    pub url: String,
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    /// Resource type (script, stylesheet, image, etc.).
-    pub resource_type: ResourceType,
+    #[test]
+    fn test_new() {
+        let m = PageMetrics::new(100, 50, 1024.5);
+        assert_eq!(m.dom_elements, 100);
+        assert_eq!(m.requests, 50);
+        assert!((m.size_kb - 1024.5).abs() < f64::EPSILON);
+    }
 
-    /// Size in bytes.
-    pub size: u64,
-
-    /// Transfer size in bytes (compressed).
-    pub transfer_size: u64,
-
-    /// Load duration in milliseconds.
-    pub duration_ms: u64,
-}
-
-/// Types of web resources.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ResourceType {
-    /// HTML document.
-    Document,
-    /// JavaScript file.
-    Script,
-    /// CSS stylesheet.
-    Stylesheet,
-    /// Image file.
-    Image,
-    /// Font file.
-    Font,
-    /// Media file (video, audio).
-    Media,
-    /// XHR/Fetch request.
-    Xhr,
-    /// WebSocket connection.
-    WebSocket,
-    /// Other resource type.
-    Other,
-}
-
-impl Default for ResourceType {
-    fn default() -> Self {
-        Self::Other
+    #[test]
+    fn test_default() {
+        let m = PageMetrics::default();
+        assert_eq!(m.dom_elements, 0);
+        assert_eq!(m.requests, 0);
+        assert!((m.size_kb - 0.0).abs() < f64::EPSILON);
     }
 }
