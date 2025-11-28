@@ -13,17 +13,19 @@
     "windows": [
       {
         "title": "EcoIndex Analyzer",
-        "width": 1024,
-        "height": 768,
+        "width": 1200,
+        "height": 800,
         "minWidth": 800,
         "minHeight": 600,
         "resizable": true,
-        "center": true
+        "center": true,
+        "fullscreen": false
       }
     ],
     "security": {
       "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
-    }
+    },
+    "withGlobalTauri": false
   },
   "bundle": {
     "active": true,
@@ -35,6 +37,64 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/lighthouse-sidecar"]
+    "externalBin": ["binaries/lighthouse-sidecar"],
+    "category": "DeveloperTool",
+    "shortDescription": "Analyseur d'empreinte environnementale web",
+    "longDescription": "EcoIndex Analyzer mesure l'impact environnemental des pages web en calculant l'EcoIndex et les métriques Lighthouse.",
+    "copyright": "© 2025 EcoIndex Analyzer",
+    "publisher": "EcoIndex",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "wix": {
+        "language": "fr-FR"
+      },
+      "nsis": {
+        "languages": ["French", "English"],
+        "displayLanguageSelector": true
+      }
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      },
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0",
+          "libnss3",
+          "libatk1.0-0",
+          "libatk-bridge2.0-0",
+          "libcups2",
+          "libdrm2",
+          "libxkbcommon0",
+          "libxcomposite1",
+          "libxdamage1",
+          "libxfixes3",
+          "libxrandr2",
+          "libgbm1",
+          "libasound2"
+        ],
+        "section": "devel"
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": null,
+      "entitlements": null
+    }
+  },
+  "plugins": {
+    "shell": {
+      "sidecar": true,
+      "scope": [
+        {
+          "name": "binaries/lighthouse-sidecar",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
   }
 }
