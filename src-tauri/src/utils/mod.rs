@@ -2,4 +2,4 @@
 
 mod paths;
 
-pub use paths::AppPaths;
+pub use paths::{resolve_chrome_path, resolve_chrome_path_from_resource_dir, AppPaths};
