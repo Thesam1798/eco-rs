@@ -27,7 +27,7 @@ pub struct PageMetrics {
 impl PageMetrics {
     /// Create a new `PageMetrics` instance.
     #[must_use]
-    pub fn new(url: String) -> Self {
+    pub const fn new(url: String) -> Self {
         Self {
             url,
             page_size: 0,

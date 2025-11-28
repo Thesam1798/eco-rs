@@ -11,9 +11,9 @@ export default {
   // Style and config files
   '*.{css,scss,json,md}': ['prettier --write'],
 
-  // Rust files (run cargo fmt and clippy)
+  // Rust files (format and lint)
   'src-tauri/**/*.rs': () => [
-    'cargo fmt --manifest-path src-tauri/Cargo.toml -- --check',
+    'cargo fmt --manifest-path src-tauri/Cargo.toml',
     'cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings',
   ],
 };

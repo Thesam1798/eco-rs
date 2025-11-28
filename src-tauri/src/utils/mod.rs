@@ -1,4 +1,4 @@
-//! Utility functions for the EcoIndex Analyzer application.
+//! Utility functions for the `EcoIndex` Analyzer application.
 
 mod paths;
 

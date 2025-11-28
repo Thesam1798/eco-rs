@@ -21,7 +21,7 @@ pub enum BrowserError {
     #[error("Page load failed: {0}")]
     PageLoadFailed(String),
 
-    /// DevTools protocol error.
+    /// `DevTools` protocol error.
     #[error("DevTools protocol error: {0}")]
     DevToolsError(String),
 

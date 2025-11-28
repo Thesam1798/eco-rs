@@ -1,4 +1,4 @@
-//! Domain models for the EcoIndex Analyzer application.
+//! Domain models for the `EcoIndex` Analyzer application.
 //!
 //! This module contains all domain types used throughout the application.
 
