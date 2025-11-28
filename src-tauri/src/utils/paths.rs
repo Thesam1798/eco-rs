@@ -1,6 +1,10 @@
 //! Cross-platform path utilities.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use tauri::Manager;
+
+use crate::errors::BrowserError;
 
 /// Application paths for data storage and sidecars.
 #[derive(Debug, Clone)]
@@ -99,6 +103,52 @@ impl Default for AppPaths {
             logs_dir: PathBuf::from("./logs"),
             config_file: PathBuf::from("./config.json"),
         })
+    }
+}
+
+/// Resolve the Chrome executable path from the app's resource directory.
+///
+/// # Errors
+///
+/// Returns an error if the resource directory cannot be determined.
+pub fn resolve_chrome_path(app: &tauri::AppHandle) -> Result<PathBuf, BrowserError> {
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| BrowserError::NotFound(e.to_string()))?;
+
+    let chrome_path = resolve_chrome_path_from_resource_dir(&resource_dir);
+
+    if !chrome_path.exists() {
+        return Err(BrowserError::NotFound(
+            chrome_path.to_string_lossy().to_string(),
+        ));
+    }
+
+    Ok(chrome_path)
+}
+
+/// Resolve Chrome path from a resource directory.
+#[must_use]
+pub fn resolve_chrome_path_from_resource_dir(resource_dir: &Path) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        resource_dir.join("chrome").join("chrome.exe")
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        resource_dir
+            .join("chrome")
+            .join("Google Chrome for Testing.app")
+            .join("Contents")
+            .join("MacOS")
+            .join("Google Chrome for Testing")
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        resource_dir.join("chrome").join("chrome")
     }
 }
 
