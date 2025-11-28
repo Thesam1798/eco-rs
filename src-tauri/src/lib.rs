@@ -1,14 +1,22 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+//! EcoIndex Analyzer - Rust backend library.
+//!
+//! This library provides the core functionality for the EcoIndex Analyzer application,
+//! including web page analysis, EcoIndex calculation, and Lighthouse integration.
 
+mod app;
+pub mod domain;
+pub mod errors;
+pub mod utils;
+
+/// Mobile entry point for Tauri.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    app::build()
+        .expect("Failed to build application")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                // Allow the app to exit gracefully
+                api.prevent_exit();
+            }
+        });
 }
