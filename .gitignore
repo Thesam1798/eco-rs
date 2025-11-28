@@ -36,7 +36,8 @@ typings/
 # Tauri
 # ===================
 /src-tauri/WixTools/
-/src-tauri/binaries/
+/src-tauri/binaries/*
+!/src-tauri/binaries/.gitkeep
 *.AppImage
 *.deb
 *.dmg
