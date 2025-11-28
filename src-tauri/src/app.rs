@@ -12,6 +12,7 @@ use tauri::App;
 pub fn build() -> tauri::Result<App> {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             // Log application info in development
             #[cfg(debug_assertions)]
@@ -31,6 +32,7 @@ pub fn build() -> tauri::Result<App> {
             greet,
             get_app_version,
             analyze_ecoindex,
+            analyze_lighthouse,
         ])
         .build(tauri::generate_context!())
 }
@@ -47,7 +49,7 @@ fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
-/// Analyzes a URL and returns its `EcoIndex` result.
+/// Analyzes a URL and returns its `EcoIndex` result (fast mode, ~5s).
 #[tauri::command]
 async fn analyze_ecoindex(
     app: tauri::AppHandle,
@@ -82,4 +84,14 @@ async fn analyze_ecoindex(
     let result = EcoIndexCalculator::compute(&metrics, &url);
 
     Ok(result)
+}
+
+/// Full Lighthouse analysis with `EcoIndex` plugin (~30s).
+#[tauri::command]
+async fn analyze_lighthouse(
+    app: tauri::AppHandle,
+    url: String,
+    include_html: bool,
+) -> Result<crate::sidecar::LighthouseResult, crate::errors::SidecarError> {
+    crate::commands::analyze_lighthouse(app, url, include_html).await
 }

@@ -9,6 +9,7 @@ pub mod calculator;
 pub mod commands;
 pub mod domain;
 pub mod errors;
+pub mod sidecar;
 pub mod utils;
 
 /// Mobile entry point for Tauri.
