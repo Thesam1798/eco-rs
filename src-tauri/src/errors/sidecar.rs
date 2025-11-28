@@ -1,5 +1,6 @@
 //! Sidecar process error types.
 
+use serde::Serialize;
 use thiserror::Error;
 
 /// Errors related to sidecar processes (Lighthouse, etc.).
@@ -33,4 +34,22 @@ pub enum SidecarError {
     /// Communication error with sidecar.
     #[error("Sidecar communication error: {0}")]
     CommunicationError(String),
+
+    /// Analysis failed with error from sidecar.
+    #[error("Analysis failed: [{code}] {message}")]
+    AnalysisFailed {
+        /// Error code from sidecar.
+        code: String,
+        /// Error message.
+        message: String,
+    },
+}
+
+impl Serialize for SidecarError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
 }
