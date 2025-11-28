@@ -1,0 +1,20 @@
+# Clippy Configuration
+# See: https://doc.rust-lang.org/clippy/configuration.html
+
+# Maximum size for types on the stack
+trivial-copy-size-limit = 16
+
+# Maximum cognitive complexity allowed for functions
+cognitive-complexity-threshold = 25
+
+# Maximum number of arguments for functions
+too-many-arguments-threshold = 8
+
+# Maximum number of lines in a function
+too-many-lines-threshold = 150
+
+# Enum variant size threshold for large_enum_variant lint
+enum-variant-size-threshold = 200
+
+# MSRV (Minimum Supported Rust Version)
+msrv = "1.75.0"
