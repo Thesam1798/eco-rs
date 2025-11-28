@@ -5,7 +5,7 @@
   "identifier": "fr.ecoindex.analyzer",
   "build": {
     "beforeDevCommand": "pnpm start",
-    "devUrl": "http://localhost:4200",
+    "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist/ecoindex-app/browser"
   },
@@ -85,16 +85,5 @@
       "entitlements": null
     }
   },
-  "plugins": {
-    "shell": {
-      "sidecar": true,
-      "scope": [
-        {
-          "name": "binaries/lighthouse-sidecar",
-          "sidecar": true,
-          "args": true
-        }
-      ]
-    }
-  }
+  "plugins": {}
 }
