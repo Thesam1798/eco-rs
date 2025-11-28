@@ -21,6 +21,10 @@ pub fn build() -> tauri::Result<App> {
                 println!("[EcoIndex] Starting {name} v{version}");
             }
 
+            // Suppress unused variable warning in release builds
+            #[cfg(not(debug_assertions))]
+            let _ = app;
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
