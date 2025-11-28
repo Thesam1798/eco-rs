@@ -1,15 +1,1 @@
-.container {
-  margin: 0 auto;
-  padding: 2rem;
-  max-width: 1200px;
-  text-align: center;
-}
-
-h1 {
-  color: #059669;
-  margin-bottom: 0.5rem;
-}
-
-p {
-  color: #6b7280;
-}
+/* Component styles - using Tailwind classes in template */
