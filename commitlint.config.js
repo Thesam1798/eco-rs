@@ -34,6 +34,7 @@ export default {
         'hooks', // Git hooks
         'ci', // CI/CD
         'docs', // Documentation
+        'scripts', // Build scripts
         'rust', // Rust specific
         'tauri', // Tauri specific
         'eslint', // ESLint config
