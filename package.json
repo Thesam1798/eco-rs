@@ -20,6 +20,11 @@
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run",
     "build:sidecar": "node scripts/build-sidecar.js",
+    "download:chrome": "node scripts/download-chrome.js",
+    "download:chrome:win": "node scripts/download-chrome.js win64",
+    "download:chrome:linux": "node scripts/download-chrome.js linux64",
+    "download:chrome:mac-x64": "node scripts/download-chrome.js mac-x64",
+    "download:chrome:mac-arm": "node scripts/download-chrome.js mac-arm64",
     "check": "pnpm lint:all && pnpm test:ci && pnpm build:all",
     "tauri": "tauri",
     "prepare": "husky"
