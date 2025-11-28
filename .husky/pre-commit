@@ -1,1 +1,10 @@
+# Lint staged files
 pnpm lint-staged
+
+# Run tests
+echo "Running tests..."
+pnpm test:ci
+
+# Run Rust clippy on staged files
+echo "Running Rust lints..."
+cd src-tauri && cargo clippy -- -D warnings

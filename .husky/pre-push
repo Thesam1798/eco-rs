@@ -1,0 +1,19 @@
+# Run all lints
+echo "Running ESLint..."
+pnpm lint
+
+echo "Running Rust clippy..."
+cd src-tauri && cargo clippy -- -D warnings
+cd ..
+
+# Run all tests
+echo "Running tests..."
+pnpm test:ci
+
+# Build Angular
+echo "Building Angular..."
+pnpm build
+
+# Build Rust (release)
+echo "Building Rust..."
+cd src-tauri && cargo build --release
