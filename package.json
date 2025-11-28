@@ -19,6 +19,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run",
+    "build:sidecar": "node scripts/build-sidecar.js",
     "check": "pnpm lint:all && pnpm test:ci && pnpm build:all",
     "tauri": "tauri",
     "prepare": "husky"
