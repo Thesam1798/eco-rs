@@ -33,11 +33,22 @@
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Desktop Spacing */
-  --spacing-desktop-sm: 0.75rem;
-  --spacing-desktop-md: 1.25rem;
-  --spacing-desktop-lg: 2rem;
-
   /* Shadows */
   --shadow-card: 0 2px 8px -2px rgb(0 0 0 / 0.1);
+}
+
+/* Global styles */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans, system-ui, sans-serif);
+  background-color: var(--color-surface, #ffffff);
+  color: var(--color-text-primary, #111827);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
