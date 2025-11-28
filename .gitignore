@@ -36,6 +36,7 @@ typings/
 # Tauri
 # ===================
 /src-tauri/WixTools/
+/src-tauri/binaries/
 *.AppImage
 *.deb
 *.dmg
@@ -101,3 +102,9 @@ test-results/
 *.tgz
 *.tar.gz
 *.zip
+
+# ===================
+# Lighthouse Sidecar
+# ===================
+/lighthouse-sidecar/node_modules/
+/lighthouse-sidecar/dist/
