@@ -106,40 +106,44 @@ impl Default for AppPaths {
     }
 }
 
-/// Resolve the Chrome executable path from the app's resource directory.
+/// Resolve the Chrome executable path.
+///
+/// Tries locations in order:
+/// 1. Resource directory (bundled production mode)
+/// 2. Binaries directory next to executable (development mode)
 ///
 /// # Errors
 ///
-/// Returns an error if the resource directory cannot be determined.
+/// Returns an error if Chrome cannot be found in any location.
 pub fn resolve_chrome_path(app: &tauri::AppHandle) -> Result<PathBuf, BrowserError> {
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|e| BrowserError::NotFound(e.to_string()))?;
-
-    let chrome_path = resolve_chrome_path_from_resource_dir(&resource_dir);
-
-    if !chrome_path.exists() {
-        return Err(BrowserError::NotFound(
-            chrome_path.to_string_lossy().to_string(),
-        ));
+    // Try resource directory first (production bundle)
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let chrome_path = resolve_chrome_from_dir(&resource_dir.join("chrome"));
+        if chrome_path.exists() {
+            return Ok(chrome_path);
+        }
     }
 
-    Ok(chrome_path)
+    // Try binaries directory next to executable (development)
+    if let Some(chrome_path) = resolve_chrome_from_dev_binaries() {
+        return Ok(chrome_path);
+    }
+
+    Err(BrowserError::NotFound(
+        "Chrome for Testing not found. Run 'pnpm download:chrome' first.".to_string(),
+    ))
 }
 
-/// Resolve Chrome path from a resource directory.
-#[must_use]
-pub fn resolve_chrome_path_from_resource_dir(resource_dir: &Path) -> PathBuf {
+/// Resolve Chrome path from a directory containing Chrome.
+fn resolve_chrome_from_dir(chrome_dir: &Path) -> PathBuf {
     #[cfg(target_os = "windows")]
     {
-        resource_dir.join("chrome").join("chrome.exe")
+        chrome_dir.join("chrome.exe")
     }
 
     #[cfg(target_os = "macos")]
     {
-        resource_dir
-            .join("chrome")
+        chrome_dir
             .join("Google Chrome for Testing.app")
             .join("Contents")
             .join("MacOS")
@@ -148,8 +152,74 @@ pub fn resolve_chrome_path_from_resource_dir(resource_dir: &Path) -> PathBuf {
 
     #[cfg(target_os = "linux")]
     {
-        resource_dir.join("chrome").join("chrome")
+        chrome_dir.join("chrome")
     }
+}
+
+/// Resolve Chrome from development binaries directory.
+///
+/// In development mode, Chrome is downloaded to `src-tauri/binaries/chrome-{target}/`
+fn resolve_chrome_from_dev_binaries() -> Option<PathBuf> {
+    let exe_path = std::env::current_exe().ok()?;
+    let exe_dir = exe_path.parent()?;
+
+    // Development mode: executable is in target/debug or target/release
+    // Binaries are in src-tauri/binaries/chrome-{target}/
+    let binaries_dir = if exe_dir.ends_with("debug") || exe_dir.ends_with("release") {
+        // target/debug -> src-tauri/binaries
+        exe_dir.parent()?.parent()?.join("binaries")
+    } else {
+        // Installed mode - check next to executable
+        exe_dir.join("binaries")
+    };
+
+    let target_triple = get_target_triple();
+    let chrome_dir = binaries_dir.join(format!("chrome-{target_triple}"));
+    let chrome_path = resolve_chrome_from_dir(&chrome_dir);
+
+    if chrome_path.exists() {
+        Some(chrome_path)
+    } else {
+        None
+    }
+}
+
+/// Get the current target triple.
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+const fn get_target_triple() -> &'static str {
+    "x86_64-pc-windows-msvc"
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+const fn get_target_triple() -> &'static str {
+    "x86_64-unknown-linux-gnu"
+}
+
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+const fn get_target_triple() -> &'static str {
+    "x86_64-apple-darwin"
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+const fn get_target_triple() -> &'static str {
+    "aarch64-apple-darwin"
+}
+
+/// Fallback for unsupported platforms.
+#[cfg(not(any(
+    all(target_os = "windows", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+)))]
+const fn get_target_triple() -> &'static str {
+    "unknown"
+}
+
+/// Resolve Chrome path from a resource directory (legacy compatibility).
+#[must_use]
+pub fn resolve_chrome_path_from_resource_dir(resource_dir: &Path) -> PathBuf {
+    resolve_chrome_from_dir(&resource_dir.join("chrome"))
 }
 
 #[cfg(test)]
@@ -167,5 +237,12 @@ mod tests {
         let paths = AppPaths::default();
         let cache_file = paths.cache_file_for_url("https://example.com");
         assert!(cache_file.extension().is_some_and(|ext| ext == "json"));
+    }
+
+    #[test]
+    fn test_get_target_triple() {
+        let triple = get_target_triple();
+        assert!(!triple.is_empty());
+        assert_ne!(triple, "unknown");
     }
 }
