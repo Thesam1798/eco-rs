@@ -28,23 +28,58 @@ pub fn build() -> tauri::Result<App> {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::greet,
-            commands::get_app_version,
+            greet,
+            get_app_version,
+            analyze_ecoindex,
         ])
         .build(tauri::generate_context!())
 }
 
-/// Tauri command handlers.
-mod commands {
-    /// Simple greeting command for testing.
-    #[tauri::command]
-    pub fn greet(name: &str) -> String {
-        format!("Hello, {name}! Welcome to EcoIndex Analyzer.")
+/// Simple greeting command for testing.
+#[tauri::command]
+fn greet(name: &str) -> String {
+    format!("Hello, {name}! Welcome to EcoIndex Analyzer.")
+}
+
+/// Get the application version.
+#[tauri::command]
+fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Analyzes a URL and returns its `EcoIndex` result.
+#[tauri::command]
+async fn analyze_ecoindex(
+    app: tauri::AppHandle,
+    url: String,
+) -> Result<crate::domain::EcoIndexResult, crate::errors::BrowserError> {
+    use crate::browser::{BrowserLauncher, MetricsCollector};
+    use crate::calculator::EcoIndexCalculator;
+    use tauri::Manager;
+
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| crate::errors::BrowserError::NotFound(e.to_string()))?;
+
+    let chrome_path = BrowserLauncher::resolve_chrome_path(&resource_dir);
+
+    if !chrome_path.exists() {
+        return Err(crate::errors::BrowserError::NotFound(
+            chrome_path.to_string_lossy().to_string(),
+        ));
     }
 
-    /// Get the application version.
-    #[tauri::command]
-    pub fn get_app_version() -> String {
-        env!("CARGO_PKG_VERSION").to_string()
-    }
+    let launcher = BrowserLauncher::new(chrome_path);
+    let (browser, handler) = launcher.launch().await?;
+
+    let collector = MetricsCollector::new(&browser);
+    let metrics = collector.collect(&url).await?;
+
+    drop(browser);
+    handler.abort();
+
+    let result = EcoIndexCalculator::compute(&metrics, &url);
+
+    Ok(result)
 }
