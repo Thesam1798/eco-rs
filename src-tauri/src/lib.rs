@@ -4,6 +4,9 @@
 //! including web page analysis, `EcoIndex` calculation, and Lighthouse integration.
 
 mod app;
+pub mod browser;
+pub mod calculator;
+pub mod commands;
 pub mod domain;
 pub mod errors;
 pub mod utils;
