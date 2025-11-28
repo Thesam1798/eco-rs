@@ -8,6 +8,8 @@
     "watch": "ng build --watch --configuration development",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "tauri": "tauri"
   },
   "private": true,
@@ -38,6 +40,8 @@
     "@typescript-eslint/eslint-plugin": "^8.48.0",
     "@typescript-eslint/parser": "^8.48.0",
     "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.7.1",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.48.0"
   }
