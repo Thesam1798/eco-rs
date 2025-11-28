@@ -1,9 +1,7 @@
 // @ts-check
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
-import angular from '@angular-eslint/eslint-plugin';
-import angularTemplate from '@angular-eslint/eslint-plugin-template';
-import angularTemplateParser from '@angular-eslint/template-parser';
+import angular from 'angular-eslint';
 import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
@@ -20,23 +18,15 @@ export default tseslint.config(
     ],
   },
 
-  // Base JavaScript config
-  eslint.configs.recommended,
-
-  // TypeScript configuration
+  // TypeScript files
   {
     files: ['**/*.ts'],
-    extends: [...tseslint.configs.strict, ...tseslint.configs.stylistic],
-    languageOptions: {
-      parser: tseslint.parser,
-      parserOptions: {
-        projectService: true,
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-    plugins: {
-      '@angular-eslint': angular,
-    },
+    extends: [
+      eslint.configs.recommended,
+      ...tseslint.configs.strict,
+      ...tseslint.configs.stylistic,
+      ...angular.configs.tsRecommended,
+    ],
     processor: angular.processInlineTemplates,
     rules: {
       // Angular selectors - using 'app' prefix
@@ -73,15 +63,10 @@ export default tseslint.config(
     },
   },
 
-  // Angular template configuration
+  // Angular template files
   {
     files: ['**/*.html'],
-    plugins: {
-      '@angular-eslint/template': angularTemplate,
-    },
-    languageOptions: {
-      parser: angularTemplateParser,
-    },
+    extends: [...angular.configs.templateRecommended, ...angular.configs.templateAccessibility],
     rules: {
       '@angular-eslint/template/prefer-control-flow': 'warn',
       '@angular-eslint/template/button-has-type': 'error',
