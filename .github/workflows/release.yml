@@ -118,11 +118,20 @@ jobs:
           shared-key: ${{ matrix.target }}
           cache-on-failure: true
 
+      - name: Cache APT packages
+        if: matrix.runs_on == 'linux-x64-docker'
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+          key: apt-tauri-release-${{ runner.os }}
+
       - name: Install Linux dependencies
         if: matrix.runs_on == 'linux-x64-docker'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             build-essential \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \

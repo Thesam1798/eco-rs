@@ -55,6 +55,7 @@ pub const GRADE_THRESHOLDS: [(f64, char); 7] = [
 ];
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::float_cmp)]
 mod tests {
     use super::*;
 
