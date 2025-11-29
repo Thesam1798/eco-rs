@@ -35,6 +35,10 @@ chrono = { version = "0.4", features = ["serde"] }
 # Chrome DevTools Protocol
 chromiumoxide = { version = "0.7", features = ["tokio-runtime"], default-features = false }
 
+# Platform-specific paths (macOS)
+[target.'cfg(target_os = "macos")'.dependencies]
+dirs = "6"
+
 [features]
 default = []
 integration-tests = []
