@@ -31,6 +31,8 @@
     "prepare:release": "node scripts/prepare-release.js",
     "tauri": "tauri",
     "tauri:dev": "TAURI_DEV_WATCHER_IGNORE_FILE=src-tauri/.taurignore tauri dev",
+    "postinstall": "node scripts/postinstall.mjs",
+    "setup": "node scripts/postinstall.mjs --force",
     "prepare": "husky"
   },
   "private": true,
