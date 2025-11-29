@@ -38,10 +38,7 @@
       "icons/icon.ico"
     ],
     "externalBin": ["binaries/node"],
-    "resources": [
-      "resources/lighthouse-sidecar/**/*",
-      "binaries/chrome-headless-shell-x86_64-pc-windows-msvc/**/*"
-    ],
+    "resources": ["resources/lighthouse-sidecar/**/*", "binaries/chrome-headless-shell-*/**/*"],
     "category": "DeveloperTool",
     "shortDescription": "Analyseur d'empreinte environnementale web",
     "longDescription": "EcoIndex Analyzer mesure l'impact environnemental des pages web en calculant l'EcoIndex et les métriques Lighthouse.",

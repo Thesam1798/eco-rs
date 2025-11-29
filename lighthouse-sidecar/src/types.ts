@@ -113,4 +113,3 @@ export interface LHResult {
   categories: Record<string, LHCategory | undefined>;
   audits: Record<string, LHAuditResult>;
 }
-
