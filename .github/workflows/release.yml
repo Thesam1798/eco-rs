@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  packages: read
 
 env:
   NODE_VERSION: '22'
@@ -17,6 +18,11 @@ jobs:
   create-release:
     name: Create Draft Release
     runs-on: linux-x64-docker
+    container:
+      image: ghcr.io/thesam1798/eco-rs/ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
       version: ${{ steps.version.outputs.VERSION }}
@@ -62,7 +68,64 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-and-upload:
+  build-linux:
+    name: Build Linux
+    needs: create-release
+    runs-on: linux-x64-docker
+    container:
+      image: ghcr.io/thesam1798/eco-rs/ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          prefix-key: release-rust
+          shared-key: x86_64-unknown-linux-gnu
+          cache-on-failure: true
+
+      - name: Install npm dependencies (skip postinstall)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+        env:
+          HUSKY: '0'
+
+      - name: Download Chrome Headless Shell
+        run: node scripts/download-chrome.mjs linux
+
+      - name: Download Node.js portable
+        run: node scripts/download-node.mjs linux
+
+      - name: Bundle Lighthouse sidecar
+        run: node scripts/bundle-lighthouse.mjs
+
+      - name: Build Frontend
+        run: pnpm build
+
+      - name: Build Tauri and Upload to Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: --target x86_64-unknown-linux-gnu
+
+  build-other:
     name: Build ${{ matrix.name }}
     needs: create-release
     strategy:
@@ -73,11 +136,6 @@ jobs:
             runs_on: windows-latest
             target: x86_64-pc-windows-msvc
             sidecar_platform: win
-
-          - name: Linux
-            runs_on: linux-x64-docker
-            target: x86_64-unknown-linux-gnu
-            sidecar_platform: linux
 
           - name: macOS ARM
             runs_on: macos-latest
@@ -118,27 +176,6 @@ jobs:
           shared-key: ${{ matrix.target }}
           cache-on-failure: true
 
-      - name: Cache APT packages
-        if: matrix.runs_on == 'linux-x64-docker'
-        uses: actions/cache@v4
-        with:
-          path: |
-            /var/cache/apt/archives
-            /var/lib/apt/lists
-          key: apt-tauri-release-${{ runner.os }}
-
-      - name: Install Linux dependencies
-        if: matrix.runs_on == 'linux-x64-docker'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libfuse2
-
       - name: Install npm dependencies (skip postinstall)
         run: pnpm install --frozen-lockfile --ignore-scripts
         env:
@@ -166,8 +203,13 @@ jobs:
 
   notify-ready:
     name: Notify Release Ready
-    needs: [create-release, build-and-upload]
+    needs: [create-release, build-linux, build-other]
     runs-on: linux-x64-docker
+    container:
+      image: ghcr.io/thesam1798/eco-rs/ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Release Ready for Review
         run: |

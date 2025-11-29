@@ -3,31 +3,42 @@ name: CI
 on:
   push:
     branches: [main, master, develop]
+    paths-ignore:
+      - '.docker/**'
+      - '**.md'
+      - 'LICENSE'
   pull_request:
     branches: [main, master]
+    paths-ignore:
+      - '.docker/**'
+      - '**.md'
+      - 'LICENSE'
 
 env:
   CARGO_TERM_COLOR: always
-  NODE_VERSION: '22'
-  RUST_VERSION: 'stable'
 
 jobs:
   lint-frontend:
     name: Lint Frontend
     runs-on: linux-x64-docker
+    container:
+      image: ghcr.io/thesam1798/eco-rs/ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          path: ${{ env.STORE_PATH }}
+          key: pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
 
       - name: Install dependencies (skip postinstall)
         run: pnpm install --frozen-lockfile --ignore-scripts
@@ -43,13 +54,13 @@ jobs:
   lint-backend:
     name: Lint Backend (Rust)
     runs-on: linux-x64-docker
+    container:
+      image: ghcr.io/thesam1798/eco-rs/ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -58,24 +69,6 @@ jobs:
           prefix-key: ci-rust
           shared-key: linux-x64
           cache-on-failure: true
-
-      - name: Cache APT packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            /var/cache/apt/archives
-            /var/lib/apt/lists
-          key: apt-tauri-deps-${{ runner.os }}
-
-      - name: Install Tauri dependencies (Linux)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
 
       - name: Create placeholder sidecars
         run: |
@@ -96,19 +89,24 @@ jobs:
   test-frontend:
     name: Test Frontend
     runs-on: linux-x64-docker
+    container:
+      image: ghcr.io/thesam1798/eco-rs/ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          path: ${{ env.STORE_PATH }}
+          key: pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
 
       - name: Install dependencies (skip postinstall)
         run: pnpm install --frozen-lockfile --ignore-scripts
@@ -121,11 +119,13 @@ jobs:
   test-backend:
     name: Test Backend (Rust)
     runs-on: linux-x64-docker
+    container:
+      image: ghcr.io/thesam1798/eco-rs/ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -134,24 +134,6 @@ jobs:
           prefix-key: ci-rust
           shared-key: linux-x64
           cache-on-failure: true
-
-      - name: Cache APT packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            /var/cache/apt/archives
-            /var/lib/apt/lists
-          key: apt-tauri-deps-${{ runner.os }}
-
-      - name: Install Tauri dependencies (Linux)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
 
       - name: Create placeholder sidecars
         run: |
@@ -168,23 +150,25 @@ jobs:
   build-check:
     name: Build Check
     runs-on: linux-x64-docker
+    container:
+      image: ghcr.io/thesam1798/eco-rs/ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     needs: [lint-frontend, lint-backend, test-frontend, test-backend]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+          path: ${{ env.STORE_PATH }}
+          key: pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -193,24 +177,6 @@ jobs:
           prefix-key: ci-rust
           shared-key: linux-x64
           cache-on-failure: true
-
-      - name: Cache APT packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            /var/cache/apt/archives
-            /var/lib/apt/lists
-          key: apt-tauri-deps-${{ runner.os }}
-
-      - name: Install Tauri dependencies (Linux)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
 
       - name: Create placeholder sidecars
         run: |
