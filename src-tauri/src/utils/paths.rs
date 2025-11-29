@@ -118,7 +118,7 @@ impl Default for AppPaths {
 pub fn resolve_chrome_path(app: &tauri::AppHandle) -> Result<PathBuf, BrowserError> {
     // Try resource directory first (production bundle)
     if let Ok(resource_dir) = app.path().resource_dir() {
-        let chrome_path = resolve_chrome_from_dir(&resource_dir.join("chrome"));
+        let chrome_path = resolve_chrome_from_dir(&resource_dir.join("chrome-headless-shell"));
         if chrome_path.exists() {
             return Ok(chrome_path);
         }
@@ -130,41 +130,37 @@ pub fn resolve_chrome_path(app: &tauri::AppHandle) -> Result<PathBuf, BrowserErr
     }
 
     Err(BrowserError::NotFound(
-        "Chrome for Testing not found. Run 'pnpm download:chrome' first.".to_string(),
+        "Chrome Headless Shell not found. Run 'pnpm download:chrome' first.".to_string(),
     ))
 }
 
-/// Resolve Chrome path from a directory containing Chrome.
+/// Resolve Chrome Headless Shell path from a directory.
 fn resolve_chrome_from_dir(chrome_dir: &Path) -> PathBuf {
     #[cfg(target_os = "windows")]
     {
-        chrome_dir.join("chrome.exe")
+        chrome_dir.join("chrome-headless-shell.exe")
     }
 
     #[cfg(target_os = "macos")]
     {
-        chrome_dir
-            .join("Google Chrome for Testing.app")
-            .join("Contents")
-            .join("MacOS")
-            .join("Google Chrome for Testing")
+        chrome_dir.join("chrome-headless-shell")
     }
 
     #[cfg(target_os = "linux")]
     {
-        chrome_dir.join("chrome")
+        chrome_dir.join("chrome-headless-shell")
     }
 }
 
-/// Resolve Chrome from development binaries directory.
+/// Resolve Chrome Headless Shell from development binaries directory.
 ///
-/// In development mode, Chrome is downloaded to `src-tauri/binaries/chrome-{target}/`
+/// In development mode, Chrome Headless Shell is downloaded to `src-tauri/binaries/chrome-headless-shell-{target}/`
 fn resolve_chrome_from_dev_binaries() -> Option<PathBuf> {
     let exe_path = std::env::current_exe().ok()?;
     let exe_dir = exe_path.parent()?;
 
     // Development mode: executable is in target/debug or target/release
-    // Binaries are in src-tauri/binaries/chrome-{target}/
+    // Binaries are in src-tauri/binaries/chrome-headless-shell-{target}/
     let binaries_dir = if exe_dir.ends_with("debug") || exe_dir.ends_with("release") {
         // target/debug -> src-tauri/binaries
         exe_dir.parent()?.parent()?.join("binaries")
@@ -174,7 +170,7 @@ fn resolve_chrome_from_dev_binaries() -> Option<PathBuf> {
     };
 
     let target_triple = get_target_triple();
-    let chrome_dir = binaries_dir.join(format!("chrome-{target_triple}"));
+    let chrome_dir = binaries_dir.join(format!("chrome-headless-shell-{target_triple}"));
     let chrome_path = resolve_chrome_from_dir(&chrome_dir);
 
     if chrome_path.exists() {

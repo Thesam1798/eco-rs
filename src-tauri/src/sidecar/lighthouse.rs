@@ -2,7 +2,10 @@
 //!
 //! Executes the Lighthouse Node.js sidecar and parses results.
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 use tauri_plugin_shell::ShellExt;
 
 use crate::errors::SidecarError;
@@ -126,24 +129,40 @@ enum SidecarOutput {
     Error(SidecarErrorResponse),
 }
 
-/// Exécute l'analyse Lighthouse via le sidecar Node.js.
+/// Exécute l'analyse Lighthouse via Node.js portable + script.
 pub async fn run_lighthouse_analysis(
     app: &tauri::AppHandle,
     url: &str,
     chrome_path: &str,
     include_html: bool,
 ) -> Result<LighthouseResult, SidecarError> {
+    // Obtenir le chemin du script depuis les resources
+    let script_path = resolve_lighthouse_script_path(app)?;
+
+    if !script_path.exists() {
+        return Err(SidecarError::SpawnFailed(format!(
+            "Lighthouse script not found at: {}",
+            script_path.display()
+        )));
+    }
+
+    // Obtenir le chemin de Node.js portable via le sidecar
     let shell = app.shell();
 
-    // Construire les arguments
-    let mut args = vec![url.to_string(), chrome_path.to_string()];
+    // Construire les arguments: script + url + chrome_path + options
+    let mut args = vec![
+        script_path.to_string_lossy().to_string(),
+        url.to_string(),
+        chrome_path.to_string(),
+    ];
     if include_html {
         args.push("--html".to_string());
     }
 
-    // Exécuter le sidecar
+    // Exécuter Node.js avec le script
+    // Le sidecar "node" correspond au binaire node-{arch}.exe
     let output = shell
-        .sidecar("lighthouse-sidecar")
+        .sidecar("node")
         .map_err(|e| SidecarError::SpawnFailed(e.to_string()))?
         .args(&args)
         .output()
@@ -182,4 +201,45 @@ pub async fn run_lighthouse_analysis(
             message: error_response.message,
         }),
     }
+}
+
+/// Resolve the Lighthouse script path.
+///
+/// Tries locations in order:
+/// 1. Resource directory (production bundle)
+/// 2. Development path (src-tauri/resources/)
+fn resolve_lighthouse_script_path(app: &tauri::AppHandle) -> Result<PathBuf, SidecarError> {
+    // Try resource directory first (production)
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let script_path = resource_dir
+            .join("lighthouse-sidecar")
+            .join("node-main.mjs");
+        if script_path.exists() {
+            return Ok(script_path);
+        }
+    }
+
+    // Try development path: target/debug -> src-tauri/resources
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            // Development mode: executable is in target/debug or target/release
+            if exe_dir.ends_with("debug") || exe_dir.ends_with("release") {
+                if let Some(target_dir) = exe_dir.parent() {
+                    if let Some(src_tauri_dir) = target_dir.parent() {
+                        let script_path = src_tauri_dir
+                            .join("resources")
+                            .join("lighthouse-sidecar")
+                            .join("node-main.mjs");
+                        if script_path.exists() {
+                            return Ok(script_path);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Err(SidecarError::SpawnFailed(
+        "Lighthouse script not found. Run 'pnpm bundle:lighthouse' first.".to_string(),
+    ))
 }

@@ -57,20 +57,9 @@ async fn analyze_ecoindex(
 ) -> Result<crate::domain::EcoIndexResult, crate::errors::BrowserError> {
     use crate::browser::{BrowserLauncher, MetricsCollector};
     use crate::calculator::EcoIndexCalculator;
-    use tauri::Manager;
+    use crate::utils::resolve_chrome_path;
 
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|e| crate::errors::BrowserError::NotFound(e.to_string()))?;
-
-    let chrome_path = BrowserLauncher::resolve_chrome_path(&resource_dir);
-
-    if !chrome_path.exists() {
-        return Err(crate::errors::BrowserError::NotFound(
-            chrome_path.to_string_lossy().to_string(),
-        ));
-    }
+    let chrome_path = resolve_chrome_path(&app)?;
 
     let launcher = BrowserLauncher::new(chrome_path);
     let (browser, handler) = launcher.launch().await?;

@@ -38,6 +38,8 @@ typings/
 /src-tauri/WixTools/
 /src-tauri/binaries/*
 !/src-tauri/binaries/.gitkeep
+/src-tauri/resources/lighthouse-sidecar/*
+!/src-tauri/resources/lighthouse-sidecar/.gitkeep
 *.AppImage
 *.deb
 *.dmg
@@ -109,3 +111,5 @@ test-results/
 # ===================
 /lighthouse-sidecar/node_modules/
 /lighthouse-sidecar/dist/
+/lighthouse-sidecar/*.exe
+/lighthouse-sidecar/deno.lock
