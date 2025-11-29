@@ -71,6 +71,7 @@ const REMOVE_PATTERNS = {
     '.idea',
     'coverage',
     '.nyc_output',
+    '.bin', // Remove bin symlinks - not needed at runtime and causes broken symlinks
   ],
   packages: ['typescript', '@types'],
 };
