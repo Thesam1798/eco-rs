@@ -74,11 +74,9 @@ export async function runAnalysis(
 
     // Ajouter le rapport HTML si demandé
     if (includeHtml && result.report) {
-      const reports = Array.isArray(result.report)
-        ? result.report
-        : [result.report];
+      const reports = Array.isArray(result.report) ? result.report : [result.report];
       const htmlReport = reports.find(
-        r => r.startsWith('<!doctype html>') || r.startsWith('<html')
+        (r) => r.startsWith('<!doctype html>') || r.startsWith('<html')
       );
       if (htmlReport) {
         analysisResult.rawLighthouseReport = htmlReport;
@@ -110,28 +108,17 @@ function extractEcoIndexMetrics(lhr: LHResult): EcoIndexMetrics {
   const scoreAudit = audits['ecoindex-score'] || audits['eco-index-score'];
   const gradeAudit = audits['ecoindex-grade'] || audits['eco-index-grade'];
   const ghgAudit =
-    audits['ecoindex-ghg'] ||
-    audits['eco-index-ghg'] ||
-    audits['ecoindex-greenhouse-gases'];
+    audits['ecoindex-ghg'] || audits['eco-index-ghg'] || audits['ecoindex-greenhouse-gases'];
   const waterAudit = audits['ecoindex-water'] || audits['eco-index-water'];
   const domAudit =
-    audits['ecoindex-dom'] ||
-    audits['eco-index-dom'] ||
-    audits['ecoindex-dom-elements'];
+    audits['ecoindex-dom'] || audits['eco-index-dom'] || audits['ecoindex-dom-elements'];
   const requestsAudit =
-    audits['ecoindex-requests'] ||
-    audits['eco-index-requests'] ||
-    audits['ecoindex-request-count'];
+    audits['ecoindex-requests'] || audits['eco-index-requests'] || audits['ecoindex-request-count'];
   const sizeAudit =
-    audits['ecoindex-size'] ||
-    audits['eco-index-size'] ||
-    audits['ecoindex-page-size'];
+    audits['ecoindex-size'] || audits['eco-index-size'] || audits['ecoindex-page-size'];
 
   // Extraire les valeurs numériques
-  const score = extractNumericValue(
-    scoreAudit,
-    ecoCategory?.score ? ecoCategory.score * 100 : 50
-  );
+  const score = extractNumericValue(scoreAudit, ecoCategory?.score ? ecoCategory.score * 100 : 50);
   const grade = extractStringValue(gradeAudit, 'D');
   const ghg = extractNumericValue(ghgAudit, 2.5);
   const water = extractNumericValue(waterAudit, 3.75);
@@ -159,19 +146,10 @@ function extractPerformanceMetrics(lhr: LHResult): PerformanceMetrics {
 
   return {
     performanceScore: Math.round((perfCategory?.score || 0) * 100),
-    firstContentfulPaint: extractNumericValue(
-      audits['first-contentful-paint'],
-      0
-    ),
-    largestContentfulPaint: extractNumericValue(
-      audits['largest-contentful-paint'],
-      0
-    ),
+    firstContentfulPaint: extractNumericValue(audits['first-contentful-paint'], 0),
+    largestContentfulPaint: extractNumericValue(audits['largest-contentful-paint'], 0),
     totalBlockingTime: extractNumericValue(audits['total-blocking-time'], 0),
-    cumulativeLayoutShift: extractNumericValue(
-      audits['cumulative-layout-shift'],
-      0
-    ),
+    cumulativeLayoutShift: extractNumericValue(audits['cumulative-layout-shift'], 0),
     speedIndex: extractNumericValue(audits['speed-index'], 0),
     timeToInteractive: extractNumericValue(audits['interactive'], 0),
   };
@@ -240,10 +218,7 @@ function extractSeoMetrics(lhr: LHResult): SeoMetrics {
 /**
  * Extrait une valeur numérique d'un audit.
  */
-function extractNumericValue(
-  audit: LHAuditResult | undefined,
-  defaultValue: number
-): number {
+function extractNumericValue(audit: LHAuditResult | undefined, defaultValue: number): number {
   if (!audit) return defaultValue;
 
   // numericValue est la valeur brute
@@ -270,10 +245,7 @@ function extractNumericValue(
 /**
  * Extrait une valeur string d'un audit.
  */
-function extractStringValue(
-  audit: LHAuditResult | undefined,
-  defaultValue: string
-): string {
+function extractStringValue(audit: LHAuditResult | undefined, defaultValue: string): string {
   if (!audit) return defaultValue;
 
   if (audit.displayValue) {
