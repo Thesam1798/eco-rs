@@ -48,6 +48,7 @@ typings/
 # ===================
 # IDE / Editors
 # ===================
+.claude/
 .idea/
 .vscode/*
 !.vscode/extensions.json
