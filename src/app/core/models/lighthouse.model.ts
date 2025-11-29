@@ -1,4 +1,4 @@
-import type { EcoIndexGrade } from './ecoindex.model';
+import type { EcoIndexGrade, ResourceBreakdown } from './ecoindex.model';
 
 /**
  * Métriques EcoIndex extraites du plugin Lighthouse
@@ -11,6 +11,7 @@ export interface LighthouseEcoIndex {
   domElements: number;
   requests: number;
   sizeKb: number;
+  resourceBreakdown?: ResourceBreakdown;
 }
 
 /**

@@ -4,30 +4,26 @@
   "private": true,
   "type": "module",
   "bin": {
-    "lighthouse-sidecar": "./dist/index.js"
+    "lighthouse-sidecar": "./src/node-main.mjs"
   },
   "scripts": {
-    "build": "tsc",
-    "pkg:win": "pkg dist/index.js -t node22-win-x64 -o ../src-tauri/binaries/lighthouse-sidecar-x86_64-pc-windows-msvc.exe",
-    "pkg:linux": "pkg dist/index.js -t node22-linux-x64 -o ../src-tauri/binaries/lighthouse-sidecar-x86_64-unknown-linux-gnu",
-    "pkg:macos-arm": "pkg dist/index.js -t node22-macos-arm64 -o ../src-tauri/binaries/lighthouse-sidecar-aarch64-apple-darwin",
-    "pkg:macos-x64": "pkg dist/index.js -t node22-macos-x64 -o ../src-tauri/binaries/lighthouse-sidecar-x86_64-apple-darwin",
-    "pkg:all": "pnpm run build && pnpm run pkg:win && pnpm run pkg:linux && pnpm run pkg:macos-arm && pnpm run pkg:macos-x64"
+    "start": "node src/node-main.mjs",
+    "pkg:win": "pkg src/node-main.mjs -t node22-win-x64 -o ../src-tauri/binaries/lighthouse-sidecar-x86_64-pc-windows-msvc.exe",
+    "pkg:linux": "pkg src/node-main.mjs -t node22-linux-x64 -o ../src-tauri/binaries/lighthouse-sidecar-x86_64-unknown-linux-gnu",
+    "pkg:macos-arm": "pkg src/node-main.mjs -t node22-macos-arm64 -o ../src-tauri/binaries/lighthouse-sidecar-aarch64-apple-darwin",
+    "pkg:macos-x64": "pkg src/node-main.mjs -t node22-macos-x64 -o ../src-tauri/binaries/lighthouse-sidecar-x86_64-apple-darwin",
+    "pkg:all": "pnpm run pkg:win && pnpm run pkg:linux && pnpm run pkg:macos-arm && pnpm run pkg:macos-x64"
   },
   "dependencies": {
-    "chrome-launcher": "^1.2.1",
-    "lighthouse": "^12.2.1",
-    "lighthouse-plugin-ecoindex": "^4.0.0"
+    "lighthouse": "^13.0.1",
+    "puppeteer-core": "^24.31.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.6.0",
     "@yao-pkg/pkg": "^6.0.0"
   },
   "pkg": {
     "assets": [
-      "node_modules/lighthouse/**/*",
-      "node_modules/lighthouse-plugin-ecoindex/**/*"
+      "node_modules/lighthouse/**/*"
     ],
     "outputPath": "../src-tauri/binaries"
   }

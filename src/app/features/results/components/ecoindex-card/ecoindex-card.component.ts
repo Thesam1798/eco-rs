@@ -81,6 +81,7 @@ export class EcoindexCardComponent {
       domElements: r.data.ecoindex.domElements,
       requests: r.data.ecoindex.requests,
       sizeKb: r.data.ecoindex.sizeKb,
+      resourceBreakdown: r.data.ecoindex.resourceBreakdown,
     };
   });
 

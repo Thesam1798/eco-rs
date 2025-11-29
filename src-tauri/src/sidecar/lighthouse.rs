@@ -10,6 +10,24 @@ use tauri_plugin_shell::ShellExt;
 
 use crate::errors::SidecarError;
 
+/// Resource breakdown by type.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceBreakdown {
+    /// Number of JavaScript files.
+    pub scripts: u32,
+    /// Number of CSS stylesheets.
+    pub stylesheets: u32,
+    /// Number of images.
+    pub images: u32,
+    /// Number of font files.
+    pub fonts: u32,
+    /// Number of XHR/fetch requests.
+    pub xhr: u32,
+    /// Other resources.
+    pub other: u32,
+}
+
 /// Résultat `EcoIndex` du plugin Lighthouse.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -28,6 +46,9 @@ pub struct EcoIndexMetrics {
     pub requests: u32,
     /// Page size in KB.
     pub size_kb: f64,
+    /// Resource breakdown by type.
+    #[serde(default)]
+    pub resource_breakdown: ResourceBreakdown,
 }
 
 /// Métriques Performance Lighthouse.

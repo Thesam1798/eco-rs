@@ -4,12 +4,25 @@
 export type EcoIndexGrade = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
 
 /**
+ * Breakdown des ressources par type
+ */
+export interface ResourceBreakdown {
+  scripts: number;
+  stylesheets: number;
+  images: number;
+  fonts: number;
+  xhr: number;
+  other: number;
+}
+
+/**
  * Métriques brutes collectées
  */
 export interface PageMetrics {
   domElements: number;
   requests: number;
   sizeKb: number;
+  resourceBreakdown?: ResourceBreakdown;
 }
 
 /**
