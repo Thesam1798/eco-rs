@@ -55,6 +55,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          prefix-key: ci-rust
+          shared-key: linux-x64
+          cache-on-failure: true
 
       - name: Install Tauri dependencies (Linux)
         run: |
@@ -120,6 +123,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          prefix-key: ci-rust
+          shared-key: linux-x64
+          cache-on-failure: true
 
       - name: Install Tauri dependencies (Linux)
         run: |
@@ -168,6 +174,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          prefix-key: ci-rust
+          shared-key: linux-x64
+          cache-on-failure: true
 
       - name: Install Tauri dependencies (Linux)
         run: |
