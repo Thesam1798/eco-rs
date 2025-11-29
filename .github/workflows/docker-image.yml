@@ -5,10 +5,14 @@ on:
     branches: [main, master]
     paths:
       - '.docker/**'
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
   pull_request:
     branches: [main, master]
     paths:
       - '.docker/**'
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
   workflow_dispatch:
     inputs:
       force_rebuild:
@@ -61,7 +65,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: .docker
+          context: .
           file: .docker/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
