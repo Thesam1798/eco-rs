@@ -21,7 +21,7 @@ env:
 jobs:
   setup-matrix:
     name: Setup Build Matrix
-    runs-on: ubuntu-latest
+    runs-on: linux-x64-docker
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -37,16 +37,16 @@ jobs:
 
           case "$PLATFORM" in
             windows)
-              echo 'matrix={"include":[{"name":"Windows","platform":"windows-latest","target":"x86_64-pc-windows-msvc","sidecar_platform":"win"}]}' >> $GITHUB_OUTPUT
+              echo 'matrix={"include":[{"name":"Windows","runs_on":"windows-latest","target":"x86_64-pc-windows-msvc","sidecar_platform":"win"}]}' >> $GITHUB_OUTPUT
               ;;
             linux)
-              echo 'matrix={"include":[{"name":"Linux","platform":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","sidecar_platform":"linux"}]}' >> $GITHUB_OUTPUT
+              echo 'matrix={"include":[{"name":"Linux","runs_on":"linux-x64-docker","target":"x86_64-unknown-linux-gnu","sidecar_platform":"linux"}]}' >> $GITHUB_OUTPUT
               ;;
             macos)
-              echo 'matrix={"include":[{"name":"macOS ARM","platform":"macos-latest","target":"aarch64-apple-darwin","sidecar_platform":"mac-arm"},{"name":"macOS Intel","platform":"macos-13","target":"x86_64-apple-darwin","sidecar_platform":"mac-x64"}]}' >> $GITHUB_OUTPUT
+              echo 'matrix={"include":[{"name":"macOS ARM","runs_on":"macos-latest","target":"aarch64-apple-darwin","sidecar_platform":"mac-arm"},{"name":"macOS Intel","runs_on":"macos-13","target":"x86_64-apple-darwin","sidecar_platform":"mac-x64"}]}' >> $GITHUB_OUTPUT
               ;;
             all|*)
-              echo 'matrix={"include":[{"name":"Windows","platform":"windows-latest","target":"x86_64-pc-windows-msvc","sidecar_platform":"win"},{"name":"Linux","platform":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","sidecar_platform":"linux"},{"name":"macOS ARM","platform":"macos-latest","target":"aarch64-apple-darwin","sidecar_platform":"mac-arm"},{"name":"macOS Intel","platform":"macos-13","target":"x86_64-apple-darwin","sidecar_platform":"mac-x64"}]}' >> $GITHUB_OUTPUT
+              echo 'matrix={"include":[{"name":"Windows","runs_on":"windows-latest","target":"x86_64-pc-windows-msvc","sidecar_platform":"win"},{"name":"Linux","runs_on":"linux-x64-docker","target":"x86_64-unknown-linux-gnu","sidecar_platform":"linux"},{"name":"macOS ARM","runs_on":"macos-latest","target":"aarch64-apple-darwin","sidecar_platform":"mac-arm"},{"name":"macOS Intel","runs_on":"macos-13","target":"x86_64-apple-darwin","sidecar_platform":"mac-x64"}]}' >> $GITHUB_OUTPUT
               ;;
           esac
 
@@ -57,7 +57,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
 
-    runs-on: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runs_on }}
 
     steps:
       - uses: actions/checkout@v4
@@ -85,7 +85,7 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.runs_on == 'linux-x64-docker'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -120,7 +120,7 @@ jobs:
           args: --target ${{ matrix.target }}
 
       - name: Upload Windows artifacts
-        if: matrix.platform == 'windows-latest'
+        if: matrix.runs_on == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: ecoindex-analyzer-${{ matrix.target }}
@@ -130,7 +130,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Linux artifacts
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.runs_on == 'linux-x64-docker'
         uses: actions/upload-artifact@v4
         with:
           name: ecoindex-analyzer-${{ matrix.target }}
@@ -140,7 +140,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload macOS artifacts
-        if: startsWith(matrix.platform, 'macos')
+        if: startsWith(matrix.runs_on, 'macos')
         uses: actions/upload-artifact@v4
         with:
           name: ecoindex-analyzer-${{ matrix.target }}
