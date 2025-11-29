@@ -1,0 +1,3 @@
+# Ignore Chrome debug logs that trigger unnecessary rebuilds
+binaries/
+resources/

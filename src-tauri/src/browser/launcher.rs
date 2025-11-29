@@ -55,27 +55,28 @@ impl BrowserLauncher {
         Ok((browser, handle))
     }
 
-    /// Resolves the Chrome executable path based on the platform.
+    /// Resolves the Chrome Headless Shell executable path based on the platform.
     #[must_use]
     pub fn resolve_chrome_path(resource_dir: &Path) -> PathBuf {
         #[cfg(target_os = "windows")]
         {
-            resource_dir.join("chrome").join("chrome.exe")
+            resource_dir
+                .join("chrome-headless-shell")
+                .join("chrome-headless-shell.exe")
         }
 
         #[cfg(target_os = "macos")]
         {
             resource_dir
-                .join("chrome")
-                .join("Google Chrome for Testing.app")
-                .join("Contents")
-                .join("MacOS")
-                .join("Google Chrome for Testing")
+                .join("chrome-headless-shell")
+                .join("chrome-headless-shell")
         }
 
         #[cfg(target_os = "linux")]
         {
-            resource_dir.join("chrome").join("chrome")
+            resource_dir
+                .join("chrome-headless-shell")
+                .join("chrome-headless-shell")
         }
     }
 }
@@ -96,12 +97,18 @@ mod tests {
         let chrome_path = BrowserLauncher::resolve_chrome_path(&resource_dir);
 
         #[cfg(target_os = "windows")]
-        assert!(chrome_path.to_string_lossy().contains("chrome.exe"));
+        assert!(chrome_path
+            .to_string_lossy()
+            .contains("chrome-headless-shell.exe"));
 
         #[cfg(target_os = "linux")]
-        assert!(chrome_path.to_string_lossy().ends_with("chrome"));
+        assert!(chrome_path
+            .to_string_lossy()
+            .ends_with("chrome-headless-shell"));
 
         #[cfg(target_os = "macos")]
-        assert!(chrome_path.to_string_lossy().contains("Google Chrome"));
+        assert!(chrome_path
+            .to_string_lossy()
+            .contains("chrome-headless-shell"));
     }
 }

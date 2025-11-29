@@ -1,11 +1,10 @@
 //! `EcoIndex` analysis command.
 
-use tauri::Manager;
-
 use crate::browser::{BrowserLauncher, MetricsCollector};
 use crate::calculator::EcoIndexCalculator;
 use crate::domain::EcoIndexResult;
 use crate::errors::BrowserError;
+use crate::utils::resolve_chrome_path;
 
 /// Analyzes a URL and returns its `EcoIndex` result.
 ///
@@ -19,18 +18,7 @@ pub async fn analyze_ecoindex(
     app: tauri::AppHandle,
     url: String,
 ) -> Result<EcoIndexResult, BrowserError> {
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|e| BrowserError::NotFound(e.to_string()))?;
-
-    let chrome_path = BrowserLauncher::resolve_chrome_path(&resource_dir);
-
-    if !chrome_path.exists() {
-        return Err(BrowserError::NotFound(
-            chrome_path.to_string_lossy().to_string(),
-        ));
-    }
+    let chrome_path = resolve_chrome_path(&app)?;
 
     let launcher = BrowserLauncher::new(chrome_path);
     let (browser, handler) = launcher.launch().await?;

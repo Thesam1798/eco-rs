@@ -15,6 +15,7 @@
     "pkg:all": "pnpm run build && pnpm run pkg:win && pnpm run pkg:linux && pnpm run pkg:macos-arm && pnpm run pkg:macos-x64"
   },
   "dependencies": {
+    "chrome-launcher": "^1.2.1",
     "lighthouse": "^12.2.1",
     "lighthouse-plugin-ecoindex": "^4.0.0"
   },
