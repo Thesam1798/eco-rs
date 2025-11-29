@@ -85,6 +85,32 @@ RUN echo "=== Verification ===" \
     && cargo clippy --version \
     && echo "=== All tools installed successfully ==="
 
+# =============================================================================
+# Pre-compile Tauri dependencies (speeds up CI builds significantly)
+# =============================================================================
+WORKDIR /tmp/tauri-deps
+
+# Copy Cargo manifests for dependency pre-compilation
+COPY src-tauri/Cargo.toml src-tauri/Cargo.lock ./
+
+# Create minimal source files required for cargo to compile dependencies
+RUN mkdir -p src binaries resources/lighthouse-sidecar \
+    && echo '//! Placeholder' > src/lib.rs \
+    && echo 'fn main() {}' > src/main.rs \
+    && echo 'fn main() {}' > build.rs \
+    && mkdir -p binaries/chrome-headless-shell-x86_64-unknown-linux-gnu \
+    && touch binaries/chrome-headless-shell-x86_64-unknown-linux-gnu/chrome-headless-shell \
+    && touch binaries/node-x86_64-unknown-linux-gnu \
+    && echo '{}' > resources/lighthouse-sidecar/package.json
+
+# Build dependencies only (this caches all crates)
+RUN cargo build --release 2>/dev/null || true \
+    && cargo clippy --all-features 2>/dev/null || true \
+    && rm -rf /tmp/tauri-deps
+
+# =============================================================================
+# Final setup
+# =============================================================================
 # Default working directory
 WORKDIR /workspace
 

@@ -8,7 +8,8 @@ Custom Docker image for running CI/CD workflows for the EcoIndex Analyzer projec
 - **Node.js 22** with corepack
 - **pnpm 9** (via corepack)
 - **Rust stable** with rustfmt and clippy
-- **Tauri dependencies**:
+- **Pre-compiled Tauri dependencies** (faster CI builds)
+- **Tauri system dependencies**:
   - build-essential
   - libwebkit2gtk-4.1-dev
   - libappindicator3-dev
@@ -37,6 +38,7 @@ docker push ghcr.io/thesam1798/eco-rs/ci-runner:latest
 The image is automatically rebuilt:
 
 - When files in `.docker/` change (push to main/master)
+- When `src-tauri/Cargo.toml` or `src-tauri/Cargo.lock` change (to update pre-compiled deps)
 - Weekly on Sunday at 00:00 UTC (for security updates)
 - Manually via workflow_dispatch
 
