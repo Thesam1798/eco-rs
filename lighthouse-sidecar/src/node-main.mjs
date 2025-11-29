@@ -3,17 +3,20 @@
 /**
  * Lighthouse Sidecar CLI - Node.js version
  *
- * A standalone CLI to run Lighthouse with the EcoIndex plugin using Node.js.
+ * Aligned with EcoindexApp methodology:
+ * - Uses Lighthouse Flow API (startFlow)
+ * - Implements warm navigation with scroll pattern
+ * - Uses disableStorageReset: true
+ * - Counts DOM nodes excluding SVG children
+ *
  * Usage: node node-main.mjs <url> <chrome-path> [--html]
  */
 
-import lighthouse from 'lighthouse';
-import * as chromeLauncher from 'chrome-launcher';
-// Note: lighthouse-plugin-ecoindex needs to be imported for Lighthouse to find it
-import 'lighthouse-plugin-ecoindex';
+import { startFlow } from 'lighthouse';
+import puppeteer from 'puppeteer-core';
 
 /**
- * Chrome flags for headless mode
+ * Chrome flags for headless mode (matching EcoindexApp)
  */
 const CHROME_FLAGS = [
   '--headless=new',
@@ -27,6 +30,50 @@ const CHROME_FLAGS = [
   '--mute-audio',
   '--no-first-run',
   '--safebrowsing-disable-auto-update',
+  '--disable-blink-features=AutomationControlled',
+  '--disable-infobars',
+  '--window-size=1920,1080',
+  '--start-maximized',
+];
+
+/**
+ * Lighthouse config aligned with EcoindexApp
+ */
+const LIGHTHOUSE_CONFIG = {
+  extends: 'lighthouse:default',
+  settings: {
+    formFactor: 'desktop',
+    screenEmulation: {
+      mobile: false,
+      width: 1920,
+      height: 1080,
+      deviceScaleFactor: 1,
+      disabled: false,
+    },
+    throttling: {
+      cpuSlowdownMultiplier: 1,
+    },
+    throttlingMethod: 'simulate',
+    disableStorageReset: true, // CRITICAL: Keep cookies/storage between navigations
+    preset: 'desktop',
+    maxWaitForFcp: 30000,
+    maxWaitForLoad: 45000,
+  },
+};
+
+/**
+ * EcoIndex quantiles (official values from cnumr/ecoindex_reference)
+ */
+const QUANTILES_DOM = [
+  0, 47, 75, 159, 233, 298, 358, 417, 476, 537, 603, 674, 753, 843, 949, 1076, 1237, 1459, 1801,
+  2479, 594601,
+];
+const QUANTILES_REQ = [
+  0, 2, 15, 25, 34, 42, 49, 56, 63, 70, 78, 86, 95, 105, 117, 130, 147, 170, 205, 281, 3920,
+];
+const QUANTILES_SIZE = [
+  0, 1.37, 144.7, 319.53, 479.46, 631.97, 783.38, 937.91, 1098.62, 1265.47, 1448.32, 1648.27,
+  1876.08, 2142.06, 2465.37, 2866.31, 3401.59, 4155.73, 5400.08, 8037.54, 223212.26,
 ];
 
 /**
@@ -66,155 +113,159 @@ function printUsage() {
 }
 
 /**
- * Run Lighthouse analysis
+ * Execute scroll pattern (matching EcoindexApp)
+ * Sequence: wait 3s -> scroll to bottom -> wait 3s
  */
-async function runAnalysis(url, chromePath, includeHtml = false) {
-  let chrome = null;
+async function executeScrollPattern(page) {
+  const session = await page.createCDPSession();
 
-  try {
-    // Launch Chrome
-    chrome = await chromeLauncher.launch({
-      chromePath,
-      chromeFlags: CHROME_FLAGS,
-    });
+  // Initial wait
+  await new Promise((r) => setTimeout(r, 3000));
 
-    // Lighthouse config with EcoIndex plugin
-    const config = {
-      extends: 'lighthouse:default',
-      plugins: ['lighthouse-plugin-ecoindex'],
-      settings: {
-        onlyCategories: [
-          'performance',
-          'accessibility',
-          'best-practices',
-          'seo',
-          'lighthouse-plugin-ecoindex',
-        ],
-        throttling: {
-          cpuSlowdownMultiplier: 1,
-          requestLatencyMs: 0,
-          downloadThroughputKbps: 0,
-          uploadThroughputKbps: 0,
-          rttMs: 0,
-          throughputKbps: 0,
-        },
-        formFactor: 'desktop',
-        screenEmulation: {
-          mobile: false,
-          width: 1920,
-          height: 1080,
-          deviceScaleFactor: 1,
-          disabled: false,
-        },
-        maxWaitForFcp: 30000,
-        maxWaitForLoad: 45000,
-      },
-    };
+  // Get page dimensions
+  const dimensions = await page.evaluate(() => ({
+    height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
+  }));
 
-    const flags = {
-      port: chrome.port,
-      output: includeHtml ? ['json', 'html'] : ['json'],
-      logLevel: 'error',
-    };
+  // Scroll to bottom via CDP (matching EcoindexApp)
+  await session.send('Input.synthesizeScrollGesture', {
+    x: 100,
+    y: 600,
+    yDistance: -dimensions.height,
+    speed: 1000,
+  });
 
-    const result = await lighthouse(url, flags, config);
+  // Final wait
+  await new Promise((r) => setTimeout(r, 3000));
 
-    if (!result || !result.lhr) {
-      return {
-        error: true,
-        code: 'LIGHTHOUSE_NO_RESULT',
-        message: 'Lighthouse did not return a result',
-      };
-    }
-
-    const lhr = result.lhr;
-
-    // Extract metrics
-    const analysisResult = {
-      url: lhr.finalDisplayedUrl || url,
-      timestamp: new Date().toISOString(),
-      ecoindex: extractEcoIndexMetrics(lhr),
-      performance: extractPerformanceMetrics(lhr),
-      accessibility: extractAccessibilityMetrics(lhr),
-      bestPractices: extractBestPracticesMetrics(lhr),
-      seo: extractSeoMetrics(lhr),
-    };
-
-    // Add HTML report if requested
-    if (includeHtml && result.report) {
-      const reports = Array.isArray(result.report) ? result.report : [result.report];
-      const htmlReport = reports.find(
-        (r) => r.startsWith('<!doctype html>') || r.startsWith('<html')
-      );
-      if (htmlReport) {
-        analysisResult.rawLighthouseReport = htmlReport;
-      }
-    }
-
-    return analysisResult;
-  } catch (error) {
-    console.error('[LIGHTHOUSE_SIDECAR_DEBUG]', error);
-
-    let message = 'Unknown error';
-    let details;
-
-    if (error instanceof Error) {
-      message = error.message;
-      details = error.stack;
-    } else if (typeof error === 'string') {
-      message = error;
-    } else if (error && typeof error === 'object') {
-      message = JSON.stringify(error);
-    }
-
-    return {
-      error: true,
-      code: 'LIGHTHOUSE_ERROR',
-      message,
-      details,
-    };
-  } finally {
-    if (chrome) {
-      await chrome.kill();
-    }
-  }
+  await session.detach();
 }
 
 /**
- * Extract EcoIndex metrics from Lighthouse result
+ * Count DOM elements excluding SVG children (EcoIndex methodology)
+ * Note: Does NOT count Shadow DOM elements (matching EcoindexApp behavior)
  */
-function extractEcoIndexMetrics(lhr) {
-  const audits = lhr.audits || {};
-  const ecoCategory = lhr.categories?.['lighthouse-plugin-ecoindex'];
+async function countDOMNodesWithoutSVG(page) {
+  return page.evaluate(() => {
+    // Simple count: body descendants minus SVG children
+    // Does NOT include Shadow DOM elements (matching EcoindexApp)
+    const allBodyNodes = document.body.querySelectorAll('*').length;
+    const svgChildren = Array.from(document.body.querySelectorAll('svg')).reduce(
+      (acc, svg) => acc + svg.querySelectorAll('*').length,
+      0
+    );
+    return allBodyNodes - svgChildren;
+  });
+}
 
-  // Try different audit naming conventions
-  const getAudit = (names) => {
-    for (const name of names) {
-      if (audits[name]) return audits[name];
+/**
+ * Compute quantile position for a value
+ */
+function computeQuantile(value, quantiles) {
+  for (let i = 1; i < quantiles.length; i++) {
+    if (value < quantiles[i]) {
+      return i - 1 + (value - quantiles[i - 1]) / (quantiles[i] - quantiles[i - 1]);
     }
-    return null;
+  }
+  return quantiles.length - 1;
+}
+
+/**
+ * Calculate EcoIndex score and grade
+ */
+function calculateEcoIndex(dom, requests, sizeKb) {
+  const domQ = computeQuantile(dom, QUANTILES_DOM);
+  const reqQ = computeQuantile(requests, QUANTILES_REQ);
+  const sizeQ = computeQuantile(sizeKb, QUANTILES_SIZE);
+
+  const score = 100 - (5 * (3 * domQ + 2 * reqQ + sizeQ)) / 6;
+  const clampedScore = Math.max(0, Math.min(100, score));
+
+  let grade;
+  if (clampedScore >= 80) grade = 'A';
+  else if (clampedScore >= 70) grade = 'B';
+  else if (clampedScore >= 55) grade = 'C';
+  else if (clampedScore >= 40) grade = 'D';
+  else if (clampedScore >= 25) grade = 'E';
+  else if (clampedScore >= 10) grade = 'F';
+  else grade = 'G';
+
+  return { score: clampedScore, grade };
+}
+
+/**
+ * Extract network statistics from Flow result
+ */
+function extractNetworkStats(lhr) {
+  const networkRequestsAudit = lhr.audits?.['network-requests'];
+  let totalCompressedSize = 0;
+  let requestCount = 0;
+
+  if (!networkRequestsAudit?.details?.items) {
+    return { requestCount: 0, totalCompressedSize: 0 };
+  }
+
+  for (const record of networkRequestsAudit.details.items) {
+    const url = record.url || '';
+    if (url.startsWith('data:') || url.startsWith('blob:')) {
+      continue;
+    }
+
+    const transferSize = record.transferSize || 0;
+    if (transferSize === 0) {
+      continue;
+    }
+
+    totalCompressedSize += transferSize;
+    requestCount += 1;
+  }
+
+  return { requestCount, totalCompressedSize };
+}
+
+/**
+ * Extract resource count breakdown by type
+ */
+function extractResourceBreakdown(lhr) {
+  const networkRequestsAudit = lhr.audits?.['network-requests'];
+  const breakdown = {
+    scripts: 0,
+    stylesheets: 0,
+    images: 0,
+    fonts: 0,
+    xhr: 0,
+    other: 0,
   };
 
-  const scoreAudit = getAudit(['eco-index-score', 'ecoindex-score']);
-  const gradeAudit = getAudit(['eco-index-grade', 'ecoindex-grade']);
-  const ghgAudit = getAudit(['eco-index-ghg', 'ecoindex-ghg']);
-  const waterAudit = getAudit(['eco-index-water', 'ecoindex-water']);
-  const domAudit = getAudit(['eco-index-nodes', 'ecoindex-nodes', 'ecoindex-dom']);
-  const requestsAudit = getAudit(['eco-index-requests', 'ecoindex-requests']);
-  const sizeAudit = getAudit(['eco-index-size', 'ecoindex-size']);
+  if (!networkRequestsAudit?.details?.items) {
+    return breakdown;
+  }
 
-  return {
-    score:
-      Math.round(
-        extractNumericValue(scoreAudit, ecoCategory?.score ? ecoCategory.score * 100 : 50) * 100
-      ) / 100,
-    grade: extractStringValue(gradeAudit, 'D'),
-    ghg: Math.round(extractNumericValue(ghgAudit, 2.5) * 100) / 100,
-    water: Math.round(extractNumericValue(waterAudit, 3.75) * 100) / 100,
-    domElements: Math.round(extractNumericValue(domAudit, 500)),
-    requests: Math.round(extractNumericValue(requestsAudit, 50)),
-    sizeKb: Math.round(extractNumericValue(sizeAudit, 1000) * 100) / 100,
-  };
+  for (const item of networkRequestsAudit.details.items) {
+    const resourceType = item.resourceType?.toLowerCase() || '';
+    const mimeType = item.mimeType?.toLowerCase() || '';
+    const url = item.url?.toLowerCase() || '';
+
+    if (resourceType === 'script' || mimeType.includes('javascript')) {
+      breakdown.scripts++;
+    } else if (resourceType === 'stylesheet' || mimeType.includes('css')) {
+      breakdown.stylesheets++;
+    } else if (resourceType === 'image' || mimeType.includes('image')) {
+      breakdown.images++;
+    } else if (
+      resourceType === 'font' ||
+      mimeType.includes('font') ||
+      url.match(/\.(woff2?|ttf|otf|eot)$/)
+    ) {
+      breakdown.fonts++;
+    } else if (resourceType === 'xhr' || resourceType === 'fetch') {
+      breakdown.xhr++;
+    } else {
+      breakdown.other++;
+    }
+  }
+
+  return breakdown;
 }
 
 /**
@@ -318,16 +369,134 @@ function extractNumericValue(audit, defaultValue) {
 }
 
 /**
- * Extract string value from audit
+ * Run Lighthouse analysis using Flow API (matching EcoindexApp methodology)
  */
-function extractStringValue(audit, defaultValue) {
-  if (!audit) return defaultValue;
+async function runAnalysis(url, chromePath, includeHtml = false) {
+  let browser = null;
 
-  if (audit.displayValue) {
-    return audit.displayValue.toString().trim();
+  try {
+    // Launch browser using puppeteer-core directly
+    browser = await puppeteer.launch({
+      executablePath: chromePath,
+      headless: 'new',
+      args: CHROME_FLAGS,
+    });
+
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1920, height: 1080 });
+
+    // WARM NAVIGATION PATTERN (matching EcoindexApp)
+    // Step 1: Cold visit to populate cache
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 45000 });
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // Step 2: Start Lighthouse Flow for warm navigation
+    const flow = await startFlow(page, {
+      config: LIGHTHOUSE_CONFIG,
+      flags: {
+        screenEmulation: { disabled: true },
+      },
+    });
+
+    // Navigate with Flow API (WARM - cache is populated)
+    await flow.navigate(url, {
+      stepName: 'EcoIndex Analysis',
+    });
+
+    // Execute scroll pattern (wait 3s -> scroll to bottom -> wait 3s)
+    await executeScrollPattern(page);
+
+    // Count DOM nodes (excluding SVG children)
+    const domElements = await countDOMNodesWithoutSVG(page);
+
+    // Get Flow result
+    const flowResult = await flow.createFlowResult();
+
+    if (!flowResult || !flowResult.steps || flowResult.steps.length === 0) {
+      return {
+        error: true,
+        code: 'LIGHTHOUSE_NO_RESULT',
+        message: 'Lighthouse Flow did not return a result',
+      };
+    }
+
+    // Get the navigation step result
+    const lhr = flowResult.steps[0].lhr;
+
+    // Extract network metrics
+    const { requestCount, totalCompressedSize } = extractNetworkStats(lhr);
+    const sizeKb = totalCompressedSize / 1000; // Official uses /1000 (not /1024)
+
+    // Calculate EcoIndex
+    const { score, grade } = calculateEcoIndex(domElements, requestCount, sizeKb);
+
+    // Calculate environmental impacts (official formula: 50 - score)
+    const ghg = 2 + (2 * (50 - score)) / 100;
+    const water = 3 + (3 * (50 - score)) / 100;
+
+    // Extract resource breakdown
+    const resourceBreakdown = extractResourceBreakdown(lhr);
+
+    // Build result
+    const analysisResult = {
+      url: lhr.finalDisplayedUrl || url,
+      timestamp: new Date().toISOString(),
+      ecoindex: {
+        score: Math.round(score * 100) / 100,
+        grade,
+        ghg: Math.round(ghg * 100) / 100,
+        water: Math.round(water * 100) / 100,
+        domElements: Math.round(domElements),
+        requests: Math.round(requestCount),
+        sizeKb: Math.round(sizeKb * 100) / 100,
+        resourceBreakdown,
+      },
+      performance: extractPerformanceMetrics(lhr),
+      accessibility: extractAccessibilityMetrics(lhr),
+      bestPractices: extractBestPracticesMetrics(lhr),
+      seo: extractSeoMetrics(lhr),
+    };
+
+    // Add HTML report if requested
+    if (includeHtml) {
+      try {
+        const htmlReport = await flow.generateReport();
+        if (htmlReport) {
+          analysisResult.rawLighthouseReport = htmlReport;
+        }
+      } catch {
+        // Silently ignore HTML report generation errors
+        // The main analysis result is still valid
+      }
+    }
+
+    return analysisResult;
+  } catch (error) {
+    // Error details are included in the JSON response
+    // No console.error to avoid interfering with stdout JSON parsing
+    let message = 'Unknown error';
+    let details;
+
+    if (error instanceof Error) {
+      message = error.message;
+      details = error.stack;
+    } else if (typeof error === 'string') {
+      message = error;
+    } else if (error && typeof error === 'object') {
+      message = JSON.stringify(error);
+    }
+
+    return {
+      error: true,
+      code: 'LIGHTHOUSE_ERROR',
+      message,
+      details,
+    };
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
-
-  return defaultValue;
 }
 
 /**
