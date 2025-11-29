@@ -59,10 +59,18 @@ jobs:
           shared-key: linux-x64
           cache-on-failure: true
 
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+          key: apt-tauri-deps-${{ runner.os }}
+
       - name: Install Tauri dependencies (Linux)
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             build-essential \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
@@ -127,10 +135,18 @@ jobs:
           shared-key: linux-x64
           cache-on-failure: true
 
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+          key: apt-tauri-deps-${{ runner.os }}
+
       - name: Install Tauri dependencies (Linux)
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             build-essential \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
@@ -178,10 +194,18 @@ jobs:
           shared-key: linux-x64
           cache-on-failure: true
 
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+          key: apt-tauri-deps-${{ runner.os }}
+
       - name: Install Tauri dependencies (Linux)
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             build-essential \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
