@@ -19,38 +19,45 @@ env:
   RUST_VERSION: 'stable'
 
 jobs:
+  setup-matrix:
+    name: Setup Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Set matrix based on platform input
+        id: set-matrix
+        run: |
+          PLATFORM="${{ github.event.inputs.platform }}"
+
+          # Default to 'all' if not specified
+          if [ -z "$PLATFORM" ]; then
+            PLATFORM="all"
+          fi
+
+          case "$PLATFORM" in
+            windows)
+              echo 'matrix={"include":[{"name":"Windows","platform":"windows-latest","target":"x86_64-pc-windows-msvc","sidecar_platform":"win"}]}' >> $GITHUB_OUTPUT
+              ;;
+            linux)
+              echo 'matrix={"include":[{"name":"Linux","platform":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","sidecar_platform":"linux"}]}' >> $GITHUB_OUTPUT
+              ;;
+            macos)
+              echo 'matrix={"include":[{"name":"macOS ARM","platform":"macos-latest","target":"aarch64-apple-darwin","sidecar_platform":"mac-arm"},{"name":"macOS Intel","platform":"macos-13","target":"x86_64-apple-darwin","sidecar_platform":"mac-x64"}]}' >> $GITHUB_OUTPUT
+              ;;
+            all|*)
+              echo 'matrix={"include":[{"name":"Windows","platform":"windows-latest","target":"x86_64-pc-windows-msvc","sidecar_platform":"win"},{"name":"Linux","platform":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","sidecar_platform":"linux"},{"name":"macOS ARM","platform":"macos-latest","target":"aarch64-apple-darwin","sidecar_platform":"mac-arm"},{"name":"macOS Intel","platform":"macos-13","target":"x86_64-apple-darwin","sidecar_platform":"mac-x64"}]}' >> $GITHUB_OUTPUT
+              ;;
+          esac
+
   build:
     name: Build ${{ matrix.name }}
+    needs: setup-matrix
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: Windows
-            platform: windows-latest
-            target: x86_64-pc-windows-msvc
-            sidecar_platform: win
-            enabled: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows' || github.event.inputs.platform == '' }}
-
-          - name: Linux
-            platform: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            sidecar_platform: linux
-            enabled: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'linux' || github.event.inputs.platform == '' }}
-
-          - name: macOS ARM
-            platform: macos-latest
-            target: aarch64-apple-darwin
-            sidecar_platform: mac-arm
-            enabled: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos' || github.event.inputs.platform == '' }}
-
-          - name: macOS Intel
-            platform: macos-13
-            target: x86_64-apple-darwin
-            sidecar_platform: mac-x64
-            enabled: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos' || github.event.inputs.platform == '' }}
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
 
     runs-on: ${{ matrix.platform }}
-    if: ${{ matrix.enabled != 'false' }}
 
     steps:
       - uses: actions/checkout@v4
