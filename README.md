@@ -1,13 +1,42 @@
 # EcoIndex Analyzer
 
-Application desktop cross-platform pour analyser l'empreinte environnementale des pages web.
+Application desktop cross-platform pour analyser l'empreinte environnementale des pages web, alignée avec la méthodologie officielle [EcoindexApp](https://github.com/cnumr/EcoindexApp).
 
 ## Features
 
 - **EcoIndex** : Score environnemental (A-G), émissions GES, consommation eau
 - **Lighthouse** : Performance, Accessibilité, SEO, Bonnes pratiques
+- **Méthodologie EcoindexApp** : Résultats cohérents avec l'application officielle
 - **Offline** : 100% fonctionnel sans internet (Chrome bundlé)
 - **Cross-platform** : Windows, macOS, Linux
+
+## EcoIndex Methodology
+
+Cette application implémente la méthodologie officielle EcoIndex avec les caractéristiques suivantes :
+
+### Mesures alignées avec EcoindexApp
+
+| Élément             | Description                                             |
+| ------------------- | ------------------------------------------------------- |
+| **Flow API**        | Utilise `startFlow()` de Lighthouse (pas l'API directe) |
+| **Warm Navigation** | Visite froide (cache), puis mesure chaude               |
+| **Scroll Pattern**  | wait 3s → scroll bottom → wait 3s                       |
+| **DOM Count**       | Exclut les enfants SVG (pas de Shadow DOM)              |
+| **Transfer Size**   | Taille compressée (bytes over wire)                     |
+| **Screen**          | Desktop 1920×1080, pas d'émulation mobile               |
+
+### Formule EcoIndex
+
+```
+score = 100 - (5 × (3 × qDOM + 2 × qReQ + qSize)) / 6
+```
+
+Avec les quantiles officiels de [cnumr/ecoindex_reference](https://github.com/cnumr/ecoindex_reference).
+
+### Impact environnemental
+
+- **GES** : `2 + (2 × (50 - score)) / 100` gCO2e
+- **Eau** : `3 + (3 × (50 - score)) / 100` cl
 
 ## Installation
 
@@ -25,7 +54,8 @@ Téléchargez l'installeur pour votre plateforme depuis les [Releases](../../rel
 - **Frontend** : Angular 20+ (standalone, signals, OnPush)
 - **Backend** : Rust + Tauri 2
 - **Browser** : Chrome for Testing (bundlé)
-- **Lighthouse** : Node.js sidecar via @yao-pkg/pkg
+- **Lighthouse** : Node.js sidecar (ESM) via @yao-pkg/pkg
+- **Sidecar** : Lighthouse 13 + Puppeteer-core (Flow API)
 - **CSS** : Tailwind CSS v4
 - **Tests** : Vitest
 
@@ -123,7 +153,8 @@ eco-app-rs/
 │   ├── Cargo.toml                # Rust dependencies
 │   └── tauri.conf.json           # Tauri configuration
 ├── lighthouse-sidecar/           # Lighthouse Node.js sidecar
-│   ├── src/                      # TypeScript source
+│   ├── src/
+│   │   └── node-main.mjs         # Main script (ESM, Flow API)
 │   └── package.json
 ├── scripts/                      # Build scripts
 │   ├── download-chrome.js        # Download Chrome for Testing
