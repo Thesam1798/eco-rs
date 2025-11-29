@@ -2,9 +2,17 @@ name: Build
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - 'v*'
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - windows
+          - linux
+          - macos
 
 env:
   NODE_VERSION: '22'
@@ -12,28 +20,37 @@ env:
 
 jobs:
   build:
-    name: Build ${{ matrix.platform }}
+    name: Build ${{ matrix.name }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: windows-latest
+          - name: Windows
+            platform: windows-latest
             target: x86_64-pc-windows-msvc
-            chrome_platform: win64
+            sidecar_platform: win
+            enabled: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows' || github.event.inputs.platform == '' }}
 
-          - platform: ubuntu-22.04
+          - name: Linux
+            platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            chrome_platform: linux64
+            sidecar_platform: linux
+            enabled: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'linux' || github.event.inputs.platform == '' }}
 
-          - platform: macos-latest
+          - name: macOS ARM
+            platform: macos-latest
             target: aarch64-apple-darwin
-            chrome_platform: mac-arm64
+            sidecar_platform: mac-arm
+            enabled: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos' || github.event.inputs.platform == '' }}
 
-          - platform: macos-13
+          - name: macOS Intel
+            platform: macos-13
             target: x86_64-apple-darwin
-            chrome_platform: mac-x64
+            sidecar_platform: mac-x64
+            enabled: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos' || github.event.inputs.platform == '' }}
 
     runs-on: ${{ matrix.platform }}
+    if: ${{ matrix.enabled != 'false' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -60,7 +77,6 @@ jobs:
           workspaces: src-tauri
           key: ${{ matrix.target }}
 
-      # Linux dependencies
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -72,40 +88,23 @@ jobs:
             patchelf \
             libfuse2
 
-      # Install npm dependencies
-      - name: Install npm dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install npm dependencies (skip postinstall)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+        env:
+          HUSKY: '0'
 
-      # Download Chrome for Testing
-      - name: Download Chrome for Testing
-        run: node scripts/download-chrome.js ${{ matrix.chrome_platform }}
+      - name: Download Chrome Headless Shell
+        run: node scripts/download-chrome.mjs ${{ matrix.sidecar_platform }}
 
-      # Build Lighthouse sidecar
-      - name: Build Lighthouse sidecar
-        run: |
-          cd lighthouse-sidecar
-          pnpm install --frozen-lockfile
-          pnpm run build
+      - name: Download Node.js portable
+        run: node scripts/download-node.mjs ${{ matrix.sidecar_platform }}
 
-      - name: Package Lighthouse sidecar
-        shell: bash
-        run: |
-          cd lighthouse-sidecar
-          if [ "${{ matrix.platform }}" == "windows-latest" ]; then
-            npx pkg dist/index.js -t node22-win-x64 -o ../src-tauri/binaries/lighthouse-sidecar-${{ matrix.target }}.exe
-          elif [ "${{ matrix.platform }}" == "ubuntu-22.04" ]; then
-            npx pkg dist/index.js -t node22-linux-x64 -o ../src-tauri/binaries/lighthouse-sidecar-${{ matrix.target }}
-          elif [ "${{ matrix.target }}" == "aarch64-apple-darwin" ]; then
-            npx pkg dist/index.js -t node22-macos-arm64 -o ../src-tauri/binaries/lighthouse-sidecar-${{ matrix.target }}
-          else
-            npx pkg dist/index.js -t node22-macos-x64 -o ../src-tauri/binaries/lighthouse-sidecar-${{ matrix.target }}
-          fi
+      - name: Bundle Lighthouse sidecar
+        run: node scripts/bundle-lighthouse.mjs
 
-      # Build Angular
       - name: Build Frontend
         run: pnpm build
 
-      # Build Tauri
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
         env:
@@ -113,8 +112,7 @@ jobs:
         with:
           args: --target ${{ matrix.target }}
 
-      # Upload artifacts
-      - name: Upload artifacts (Windows)
+      - name: Upload Windows artifacts
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
@@ -124,7 +122,7 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
           if-no-files-found: error
 
-      - name: Upload artifacts (Linux)
+      - name: Upload Linux artifacts
         if: matrix.platform == 'ubuntu-22.04'
         uses: actions/upload-artifact@v4
         with:
@@ -134,7 +132,7 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
           if-no-files-found: error
 
-      - name: Upload artifacts (macOS)
+      - name: Upload macOS artifacts
         if: startsWith(matrix.platform, 'macos')
         uses: actions/upload-artifact@v4
         with:

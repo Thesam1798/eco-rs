@@ -3,7 +3,9 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*'
+    branches:
+      - 'release/*'
 
 permissions:
   contents: write
@@ -13,51 +15,79 @@ env:
 
 jobs:
   create-release:
-    name: Create Release
+    name: Create Draft Release
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.version.outputs.VERSION }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get version from tag
+      - name: Get version from tag or branch
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="${GITHUB_REF#refs/heads/release/}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
 
-      - name: Create Release
+      - name: Create Draft Release
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
           name: EcoIndex Analyzer v${{ steps.version.outputs.VERSION }}
+          tag_name: v${{ steps.version.outputs.VERSION }}
           draft: true
-          prerelease: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, 'alpha') || contains(steps.version.outputs.VERSION, 'beta') || contains(steps.version.outputs.VERSION, 'rc') }}
           generate_release_notes: true
+          body: |
+            ## EcoIndex Analyzer v${{ steps.version.outputs.VERSION }}
+
+            ### Installation
+
+            | Platform | Download |
+            |----------|----------|
+            | Windows (installer) | `EcoIndex-Analyzer_${{ steps.version.outputs.VERSION }}_x64-setup.exe` |
+            | Windows (MSI) | `EcoIndex-Analyzer_${{ steps.version.outputs.VERSION }}_x64_en-US.msi` |
+            | Linux (AppImage) | `EcoIndex-Analyzer_${{ steps.version.outputs.VERSION }}_amd64.AppImage` |
+            | Linux (Debian) | `EcoIndex-Analyzer_${{ steps.version.outputs.VERSION }}_amd64.deb` |
+            | macOS ARM (M1/M2) | `EcoIndex-Analyzer_${{ steps.version.outputs.VERSION }}_aarch64.dmg` |
+            | macOS Intel | `EcoIndex-Analyzer_${{ steps.version.outputs.VERSION }}_x64.dmg` |
+
+            ---
+            _This release was automatically generated. Please review before publishing._
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-and-upload:
-    name: Build ${{ matrix.platform }}
+    name: Build ${{ matrix.name }}
     needs: create-release
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: windows-latest
+          - name: Windows
+            platform: windows-latest
             target: x86_64-pc-windows-msvc
-            chrome_platform: win64
+            sidecar_platform: win
 
-          - platform: ubuntu-22.04
+          - name: Linux
+            platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            chrome_platform: linux64
+            sidecar_platform: linux
 
-          - platform: macos-latest
+          - name: macOS ARM
+            platform: macos-latest
             target: aarch64-apple-darwin
-            chrome_platform: mac-arm64
+            sidecar_platform: mac-arm
 
-          - platform: macos-13
+          - name: macOS Intel
+            platform: macos-13
             target: x86_64-apple-darwin
-            chrome_platform: mac-x64
+            sidecar_platform: mac-x64
 
     runs-on: ${{ matrix.platform }}
 
@@ -84,7 +114,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          key: ${{ matrix.target }}
+          key: ${{ matrix.target }}-release
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -97,36 +127,24 @@ jobs:
             patchelf \
             libfuse2
 
-      - name: Install npm dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install npm dependencies (skip postinstall)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+        env:
+          HUSKY: '0'
 
-      - name: Download Chrome for Testing
-        run: node scripts/download-chrome.js ${{ matrix.chrome_platform }}
+      - name: Download Chrome Headless Shell
+        run: node scripts/download-chrome.mjs ${{ matrix.sidecar_platform }}
 
-      - name: Build Lighthouse sidecar
-        run: |
-          cd lighthouse-sidecar
-          pnpm install --frozen-lockfile
-          pnpm run build
+      - name: Download Node.js portable
+        run: node scripts/download-node.mjs ${{ matrix.sidecar_platform }}
 
-      - name: Package Lighthouse sidecar
-        shell: bash
-        run: |
-          cd lighthouse-sidecar
-          if [ "${{ matrix.platform }}" == "windows-latest" ]; then
-            npx pkg dist/index.js -t node22-win-x64 -o ../src-tauri/binaries/lighthouse-sidecar-${{ matrix.target }}.exe
-          elif [ "${{ matrix.platform }}" == "ubuntu-22.04" ]; then
-            npx pkg dist/index.js -t node22-linux-x64 -o ../src-tauri/binaries/lighthouse-sidecar-${{ matrix.target }}
-          elif [ "${{ matrix.target }}" == "aarch64-apple-darwin" ]; then
-            npx pkg dist/index.js -t node22-macos-arm64 -o ../src-tauri/binaries/lighthouse-sidecar-${{ matrix.target }}
-          else
-            npx pkg dist/index.js -t node22-macos-x64 -o ../src-tauri/binaries/lighthouse-sidecar-${{ matrix.target }}
-          fi
+      - name: Bundle Lighthouse sidecar
+        run: node scripts/bundle-lighthouse.mjs
 
       - name: Build Frontend
         run: pnpm build
 
-      - name: Build Tauri and Upload
+      - name: Build Tauri and Upload to Release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -134,18 +152,19 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: --target ${{ matrix.target }}
 
-  publish-release:
-    name: Publish Release
+  notify-ready:
+    name: Notify Release Ready
     needs: [create-release, build-and-upload]
     runs-on: ubuntu-latest
     steps:
-      - name: Publish Release
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.repos.updateRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: ${{ needs.create-release.outputs.release_id }},
-              draft: false
-            });
+      - name: Release Ready for Review
+        run: |
+          echo "========================================"
+          echo "Release v${{ needs.create-release.outputs.version }} is ready for review!"
+          echo "========================================"
+          echo ""
+          echo "All builds completed successfully."
+          echo "Please review the draft release and publish it manually."
+          echo ""
+          echo "Release URL: https://github.com/${{ github.repository }}/releases"
+          echo "========================================"
