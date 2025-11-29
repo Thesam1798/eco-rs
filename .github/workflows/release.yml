@@ -114,7 +114,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          key: ${{ matrix.target }}-release
+          prefix-key: release-rust
+          shared-key: ${{ matrix.target }}
+          cache-on-failure: true
 
       - name: Install Linux dependencies
         if: matrix.runs_on == 'linux-x64-docker'
