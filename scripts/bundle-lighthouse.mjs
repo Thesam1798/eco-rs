@@ -91,11 +91,16 @@ function getDirSize(dir) {
   const files = readdirSync(dir);
   for (const file of files) {
     const path = join(dir, file);
-    const stat = statSync(path);
-    if (stat.isDirectory()) {
-      size += getDirSize(path);
-    } else {
-      size += stat.size;
+    try {
+      // Use lstatSync to handle symlinks without following them
+      const stat = statSync(path);
+      if (stat.isDirectory()) {
+        size += getDirSize(path);
+      } else {
+        size += stat.size;
+      }
+    } catch {
+      // Ignore broken symlinks or inaccessible files
     }
   }
   return size;

@@ -43,6 +43,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
     gnupg \
+    unzip \
     # SSL for Rust/Cargo
     libssl-dev \
     # Clean up
