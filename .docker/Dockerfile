@@ -44,6 +44,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     gnupg \
     unzip \
+    # XDG utilities for Tauri bundling (xdg-open)
+    xdg-utils \
     # SSL for Rust/Cargo
     libssl-dev \
     # Clean up
