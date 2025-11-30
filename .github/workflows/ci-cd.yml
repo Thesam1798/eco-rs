@@ -21,6 +21,11 @@ on:
 permissions:
   contents: write
 
+# Cancel outdated runs for the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && !startsWith(github.ref, 'refs/tags/') }}
+
 env:
   NODE_VERSION: '22'
   PNPM_VERSION: '9'
@@ -34,6 +39,7 @@ jobs:
   # ---------------------------------------------------------------------------
   lint:
     name: Lint
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: linux-x64-docker
     steps:
       - uses: actions/checkout@v4
@@ -111,6 +117,7 @@ jobs:
   # ---------------------------------------------------------------------------
   test:
     name: Test
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: linux-x64-docker
     steps:
       - uses: actions/checkout@v4
@@ -183,6 +190,7 @@ jobs:
     runs-on: linux-x64-docker
     outputs:
       version: ${{ steps.version.outputs.VERSION }}
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -204,19 +212,26 @@ jobs:
         run: node scripts/bump-version.mjs ${{ steps.version.outputs.VERSION }}
 
       - name: Commit version update
+        id: commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git diff --staged --quiet || git commit -m "chore(release): bump version to ${{ steps.version.outputs.VERSION }} [skip ci]"
-          git push origin HEAD:${{ github.event.repository.default_branch }} || echo "Nothing to push"
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+          else
+            git commit -m "chore(release): bump version to ${{ steps.version.outputs.VERSION }} [skip ci]"
+            git push origin HEAD:${{ github.event.repository.default_branch }}
+            echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          fi
 
   # ---------------------------------------------------------------------------
   # Release: Create Draft Release (tags only)
   # ---------------------------------------------------------------------------
   create-release:
     name: Create Draft Release
-    needs: [update-version, lint, test]
+    needs: [update-version]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: linux-x64-docker
     outputs:
@@ -258,35 +273,22 @@ jobs:
   # ---------------------------------------------------------------------------
   build-linux:
     name: Build Linux
-    needs: create-release
+    needs: [create-release, update-version]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ needs.update-version.outputs.sha }}
           fetch-depth: 0
 
       - name: Restore file timestamps for cache
         uses: chetan/git-restore-mtime-action@v2
 
-      - name: Cache apt packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/apt-archives
-          key: apt-tauri-build-${{ runner.os }}-v1
-
       - name: Install Tauri dependencies
-        run: |
-          mkdir -p ~/.cache/apt-archives
-          sudo cp -n ~/.cache/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libfuse2
-          cp /var/cache/apt/archives/*.deb ~/.cache/apt-archives/ 2>/dev/null || true
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2
+          version: 1.0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -338,7 +340,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: src-tauri/resources/lighthouse-sidecar
-          key: lighthouse-${{ hashFiles('scripts/bundle-lighthouse.mjs', 'lighthouse-sidecar/package.json') }}
+          key: lighthouse-${{ runner.os }}-${{ hashFiles('scripts/bundle-lighthouse.mjs', 'lighthouse-sidecar/package.json') }}
 
       - name: Bundle Lighthouse sidecar
         run: node scripts/bundle-lighthouse.mjs
@@ -360,7 +362,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build-other:
     name: Build ${{ matrix.name }}
-    needs: create-release
+    needs: [create-release, update-version]
     strategy:
       fail-fast: false
       matrix:
@@ -384,7 +386,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ needs.update-version.outputs.sha }}
           fetch-depth: 0
 
       - name: Restore file timestamps for cache
@@ -442,7 +444,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: src-tauri/resources/lighthouse-sidecar
-          key: lighthouse-${{ hashFiles('scripts/bundle-lighthouse.mjs', 'lighthouse-sidecar/package.json') }}
+          key: lighthouse-${{ runner.os }}-${{ hashFiles('scripts/bundle-lighthouse.mjs', 'lighthouse-sidecar/package.json') }}
 
       - name: Bundle Lighthouse sidecar
         run: node scripts/bundle-lighthouse.mjs
