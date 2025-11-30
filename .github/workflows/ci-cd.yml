@@ -1,7 +1,7 @@
 # =============================================================================
 # Unified CI/CD Workflow
-# - Branches: lint + test
-# - Tags: lint + test → release (only if CI passes)
+# - Branches/PRs: lint + test only
+# - Tags: release only (CI already passed on branch)
 # =============================================================================
 name: CI/CD
 
@@ -22,10 +22,9 @@ on:
 permissions:
   contents: write
 
-# Concurrency par SHA: si on push master puis un tag pour le même commit,
-# le workflow tag annule le workflow master (évite les doublons)
+# Concurrency: prevent duplicate runs on same branch/tag
 concurrency:
-  group: ${{ github.workflow }}-${{ github.sha }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -37,10 +36,11 @@ env:
 # =============================================================================
 jobs:
   # ---------------------------------------------------------------------------
-  # CI: Lint (always runs)
+  # CI: Lint (branches/PRs only - tags skip CI)
   # ---------------------------------------------------------------------------
   lint:
     name: Lint
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +51,7 @@ jobs:
         uses: ./.github/actions/setup-build
         with:
           rust-cache-shared-key: debug-linux
-          rust-cache-save: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
+          rust-cache-save: 'false'
           install-tauri-deps: 'true'
           rust-components: rustfmt, clippy
           create-sidecar-placeholders: 'true'
@@ -71,10 +71,11 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
   # ---------------------------------------------------------------------------
-  # CI: Test (always runs)
+  # CI: Test (branches/PRs only - tags skip CI)
   # ---------------------------------------------------------------------------
   test:
     name: Test
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -85,7 +86,7 @@ jobs:
         uses: ./.github/actions/setup-build
         with:
           rust-cache-shared-key: debug-linux
-          rust-cache-save: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
+          rust-cache-save: ${{ github.ref == 'refs/heads/master' }}
           install-tauri-deps: 'true'
           create-sidecar-placeholders: 'true'
 
@@ -97,11 +98,10 @@ jobs:
         run: cargo test --all-features
 
   # ---------------------------------------------------------------------------
-  # Release: Update Version (tags only, after CI passes)
+  # Release: Update Version (tags only)
   # ---------------------------------------------------------------------------
   update-version:
     name: Update Version
-    needs: [lint, test]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     outputs:
