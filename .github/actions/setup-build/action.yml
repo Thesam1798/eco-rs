@@ -1,0 +1,82 @@
+name: 'Setup Build Environment'
+description: 'Common setup for CI and Release builds'
+
+inputs:
+  node-version:
+    description: 'Node.js version'
+    required: false
+    default: '22'
+  pnpm-version:
+    description: 'pnpm version'
+    required: false
+    default: '9'
+  rust-cache-shared-key:
+    description: 'Shared key for Rust cache'
+    required: true
+  rust-cache-save:
+    description: 'Whether to save Rust cache'
+    required: false
+    default: 'false'
+  install-tauri-deps:
+    description: 'Install Tauri Linux dependencies'
+    required: false
+    default: 'false'
+  rust-targets:
+    description: 'Additional Rust targets to install'
+    required: false
+    default: ''
+  rust-components:
+    description: 'Rust components to install (e.g., rustfmt, clippy)'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Restore file timestamps for cache
+      uses: chetan/git-restore-mtime-action@v2
+
+    - name: Install Tauri dependencies (Linux)
+      if: inputs.install-tauri-deps == 'true' && runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential \
+          libwebkit2gtk-4.1-dev \
+          libappindicator3-dev \
+          librsvg2-dev \
+          patchelf
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ inputs.pnpm-version }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'pnpm'
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ inputs.rust-targets }}
+        components: ${{ inputs.rust-components }}
+
+    - name: Cache Cargo
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: src-tauri
+        prefix-key: v1
+        shared-key: ${{ inputs.rust-cache-shared-key }}
+        cache-on-failure: true
+        cache-all-crates: true
+        save-if: ${{ inputs.rust-cache-save }}
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile --ignore-scripts
+      env:
+        HUSKY: '0'

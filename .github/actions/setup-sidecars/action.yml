@@ -1,0 +1,46 @@
+name: 'Setup Sidecars'
+description: 'Download and bundle Chrome, Node.js, and Lighthouse sidecars'
+
+inputs:
+  platform:
+    description: 'Platform for sidecars (linux, win, mac-arm, mac-x64)'
+    required: true
+  target:
+    description: 'Rust target for cache keys'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Cache Chrome Headless Shell
+      uses: actions/cache@v4
+      with:
+        path: src-tauri/binaries/chrome-headless-shell-*
+        key: chrome-${{ inputs.target }}-${{ hashFiles('scripts/download-chrome.mjs') }}
+        save-always: true
+
+    - name: Download Chrome Headless Shell
+      shell: bash
+      run: node scripts/download-chrome.mjs ${{ inputs.platform }}
+
+    - name: Cache Node.js Portable
+      uses: actions/cache@v4
+      with:
+        path: src-tauri/binaries/node-*
+        key: node-${{ inputs.target }}-${{ hashFiles('scripts/download-node.mjs') }}
+        save-always: true
+
+    - name: Download Node.js portable
+      shell: bash
+      run: node scripts/download-node.mjs ${{ inputs.platform }}
+
+    - name: Cache Lighthouse Bundle
+      uses: actions/cache@v4
+      with:
+        path: src-tauri/resources/lighthouse-sidecar
+        key: lighthouse-${{ runner.os }}-${{ hashFiles('scripts/bundle-lighthouse.mjs', 'lighthouse-sidecar/package.json') }}
+        save-always: true
+
+    - name: Bundle Lighthouse sidecar
+      shell: bash
+      run: node scripts/bundle-lighthouse.mjs

@@ -1,0 +1,101 @@
+# =============================================================================
+# CI Workflow - Lint & Test on branches
+# =============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+    tags-ignore: ['**']
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+  pull_request:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '9'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Lint
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: linux-x64-docker
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build
+        with:
+          rust-cache-shared-key: debug-linux
+          rust-cache-save: ${{ github.ref == 'refs/heads/master' }}
+          install-tauri-deps: 'true'
+          rust-components: rustfmt, clippy
+
+      - name: Create placeholder sidecars
+        run: |
+          mkdir -p src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu
+          touch src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu/chrome-headless-shell
+          touch src-tauri/binaries/node-x86_64-unknown-linux-gnu
+          mkdir -p src-tauri/resources/lighthouse-sidecar
+          echo '{}' > src-tauri/resources/lighthouse-sidecar/package.json
+
+      - name: ESLint
+        run: pnpm lint
+
+      - name: Prettier
+        run: pnpm format:check
+
+      - name: Rustfmt
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # Test
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: linux-x64-docker
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build
+        with:
+          rust-cache-shared-key: debug-linux
+          rust-cache-save: ${{ github.ref == 'refs/heads/master' }}
+          install-tauri-deps: 'true'
+
+      - name: Create placeholder sidecars
+        run: |
+          mkdir -p src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu
+          touch src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu/chrome-headless-shell
+          touch src-tauri/binaries/node-x86_64-unknown-linux-gnu
+          mkdir -p src-tauri/resources/lighthouse-sidecar
+          echo '{}' > src-tauri/resources/lighthouse-sidecar/package.json
+
+      - name: Run frontend tests
+        run: pnpm test:ci
+
+      - name: Run backend tests
+        working-directory: src-tauri
+        run: cargo test --all-features
