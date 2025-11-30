@@ -41,11 +41,13 @@ jobs:
       - name: Cache apt packages
         uses: actions/cache@v4
         with:
-          path: /var/cache/apt/archives
+          path: ~/.cache/apt-archives
           key: apt-tauri-${{ runner.os }}-v1
 
       - name: Install Tauri dependencies
         run: |
+          mkdir -p ~/.cache/apt-archives
+          sudo cp -n ~/.cache/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential \
@@ -53,6 +55,7 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             patchelf
+          cp /var/cache/apt/archives/*.deb ~/.cache/apt-archives/ 2>/dev/null || true
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -118,11 +121,13 @@ jobs:
       - name: Cache apt packages
         uses: actions/cache@v4
         with:
-          path: /var/cache/apt/archives
+          path: ~/.cache/apt-archives
           key: apt-tauri-${{ runner.os }}-v1
 
       - name: Install Tauri dependencies
         run: |
+          mkdir -p ~/.cache/apt-archives
+          sudo cp -n ~/.cache/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential \
@@ -130,6 +135,7 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             patchelf
+          cp /var/cache/apt/archives/*.deb ~/.cache/apt-archives/ 2>/dev/null || true
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -268,11 +274,13 @@ jobs:
       - name: Cache apt packages
         uses: actions/cache@v4
         with:
-          path: /var/cache/apt/archives
+          path: ~/.cache/apt-archives
           key: apt-tauri-build-${{ runner.os }}-v1
 
       - name: Install Tauri dependencies
         run: |
+          mkdir -p ~/.cache/apt-archives
+          sudo cp -n ~/.cache/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev \
@@ -280,6 +288,7 @@ jobs:
             librsvg2-dev \
             patchelf \
             libfuse2
+          cp /var/cache/apt/archives/*.deb ~/.cache/apt-archives/ 2>/dev/null || true
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
