@@ -73,7 +73,7 @@ runs:
       uses: Swatinem/rust-cache@v2
       with:
         workspaces: src-tauri
-        prefix-key: v1
+        prefix-key: v2
         shared-key: ${{ inputs.rust-cache-shared-key }}
         cache-on-failure: true
         cache-all-crates: true
