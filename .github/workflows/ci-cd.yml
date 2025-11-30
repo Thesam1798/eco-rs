@@ -38,11 +38,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache Tauri dependencies
-        uses: awalsh128/cache-apt-pkgs-action@latest
+      - name: Cache apt packages
+        uses: actions/cache@v4
         with:
-          packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-          version: 1.0
+          path: /var/cache/apt/archives
+          key: apt-tauri-${{ runner.os }}-v1
+
+      - name: Install Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -105,11 +114,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache Tauri dependencies
-        uses: awalsh128/cache-apt-pkgs-action@latest
+      - name: Cache apt packages
+        uses: actions/cache@v4
         with:
-          packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-          version: 1.0
+          path: /var/cache/apt/archives
+          key: apt-tauri-${{ runner.os }}-v1
+
+      - name: Install Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -245,11 +263,21 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
 
-      - name: Cache Tauri dependencies
-        uses: awalsh128/cache-apt-pkgs-action@latest
+      - name: Cache apt packages
+        uses: actions/cache@v4
         with:
-          packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2
-          version: 1.0
+          path: /var/cache/apt/archives
+          key: apt-tauri-build-${{ runner.os }}-v1
+
+      - name: Install Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libfuse2
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
