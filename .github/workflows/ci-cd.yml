@@ -36,45 +36,10 @@ env:
 # =============================================================================
 jobs:
   # ---------------------------------------------------------------------------
-  # CI: Lint (branches/PRs only - tags skip CI)
+  # CI: Lint + Test (branches/PRs only - tags skip CI)
   # ---------------------------------------------------------------------------
-  lint:
-    name: Lint
-    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Build Environment
-        uses: ./.github/actions/setup-build
-        with:
-          rust-cache-shared-key: debug-linux
-          rust-cache-save: 'false'
-          install-tauri-deps: 'true'
-          rust-components: rustfmt, clippy
-          create-sidecar-placeholders: 'true'
-
-      - name: ESLint
-        run: pnpm lint
-
-      - name: Prettier
-        run: pnpm format:check
-
-      - name: Rustfmt
-        working-directory: src-tauri
-        run: cargo fmt --all -- --check
-
-      - name: Clippy
-        working-directory: src-tauri
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-  # ---------------------------------------------------------------------------
-  # CI: Test (branches/PRs only - tags skip CI)
-  # ---------------------------------------------------------------------------
-  test:
-    name: Test
+  ci:
+    name: CI
     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     steps:
@@ -88,12 +53,29 @@ jobs:
           rust-cache-shared-key: debug-linux
           rust-cache-save: ${{ github.ref == 'refs/heads/master' }}
           install-tauri-deps: 'true'
+          rust-components: rustfmt, clippy
           create-sidecar-placeholders: 'true'
 
-      - name: Run frontend tests
+      # Fast checks first (no Rust compilation)
+      - name: ESLint
+        run: pnpm lint
+
+      - name: Prettier
+        run: pnpm format:check
+
+      - name: Rustfmt
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: Frontend tests
         run: pnpm test:ci
 
-      - name: Run backend tests
+      # Rust compilation (shared between clippy and tests)
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Backend tests
         working-directory: src-tauri
         run: cargo test --all-features
 
