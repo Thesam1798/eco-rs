@@ -29,6 +29,10 @@ inputs:
     description: 'Rust components to install (e.g., rustfmt, clippy)'
     required: false
     default: ''
+  create-sidecar-placeholders:
+    description: 'Create placeholder sidecars for CI (skip real downloads)'
+    required: false
+    default: 'false'
 
 runs:
   using: 'composite'
@@ -80,3 +84,13 @@ runs:
       run: pnpm install --frozen-lockfile --ignore-scripts
       env:
         HUSKY: '0'
+
+    - name: Create placeholder sidecars
+      if: inputs.create-sidecar-placeholders == 'true'
+      shell: bash
+      run: |
+        mkdir -p src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu
+        touch src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu/chrome-headless-shell
+        touch src-tauri/binaries/node-x86_64-unknown-linux-gnu
+        mkdir -p src-tauri/resources/lighthouse-sidecar
+        echo '{}' > src-tauri/resources/lighthouse-sidecar/package.json
