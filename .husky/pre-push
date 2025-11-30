@@ -2,8 +2,14 @@
 echo "Running ESLint..."
 pnpm lint
 
+echo "Running Prettier check..."
+pnpm format:check
+
+echo "Running Rust fmt check..."
+cd src-tauri && cargo fmt --all -- --check
+
 echo "Running Rust clippy..."
-cd src-tauri && cargo clippy -- -D warnings
+cargo clippy -- -D warnings
 cd ..
 
 # Run all tests
