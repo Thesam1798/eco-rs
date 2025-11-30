@@ -322,12 +322,17 @@ jobs:
           ref: ${{ needs.update-version.outputs.sha }}
           fetch-depth: 0
 
+      - name: Install Tauri dependencies (self-hosted)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
       - name: Setup Build Environment
         uses: ./.github/actions/setup-build
         with:
           rust-cache-shared-key: release-x86_64-unknown-linux-gnu
           rust-cache-save: 'true'
-          install-tauri-deps: 'true'
+          install-tauri-deps: 'false'
 
       - name: Setup Sidecars
         uses: ./.github/actions/setup-sidecars
