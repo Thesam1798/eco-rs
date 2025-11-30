@@ -41,7 +41,7 @@ jobs:
   # ---------------------------------------------------------------------------
   lint:
     name: Lint
-    runs-on: linux-x64-docker
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,7 +75,7 @@ jobs:
   # ---------------------------------------------------------------------------
   test:
     name: Test
-    runs-on: linux-x64-docker
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -103,7 +103,7 @@ jobs:
     name: Update Version
     needs: [lint, test]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: linux-x64-docker
+    runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.VERSION }}
       sha: ${{ steps.commit.outputs.sha }}
@@ -149,7 +149,7 @@ jobs:
     name: Create Draft Release
     needs: [update-version]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: linux-x64-docker
+    runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
     steps:
@@ -303,7 +303,7 @@ jobs:
     name: Release Ready
     needs: [create-release, build-linux, build-other]
     if: always() && needs.create-release.result == 'success'
-    runs-on: linux-x64-docker
+    runs-on: ubuntu-latest
     steps:
       - name: Check build results
         env:
