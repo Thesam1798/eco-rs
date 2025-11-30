@@ -34,7 +34,7 @@ jobs:
   # ---------------------------------------------------------------------------
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: linux-x64-docker
     steps:
       - uses: actions/checkout@v4
 
@@ -67,8 +67,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          prefix-key: ci-rust
-          shared-key: ci-linux
+          prefix-key: v1
+          shared-key: debug-linux
           cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
 
@@ -104,7 +104,7 @@ jobs:
   # ---------------------------------------------------------------------------
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: linux-x64-docker
     steps:
       - uses: actions/checkout@v4
 
@@ -135,8 +135,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          prefix-key: ci-rust
-          shared-key: ci-linux
+          prefix-key: v1
+          shared-key: debug-linux
           cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
 
@@ -166,7 +166,7 @@ jobs:
   update-version:
     name: Update Version
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: linux-x64-docker
     outputs:
       version: ${{ steps.version.outputs.VERSION }}
     steps:
@@ -204,7 +204,7 @@ jobs:
     name: Create Draft Release
     needs: [update-version, lint, test]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: linux-x64-docker
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
     steps:
@@ -279,8 +279,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          prefix-key: release-rust
-          shared-key: x86_64-unknown-linux-gnu
+          prefix-key: v1
+          shared-key: release-x86_64-unknown-linux-gnu
           cache-on-failure: true
 
       - name: Install dependencies
@@ -288,11 +288,29 @@ jobs:
         env:
           HUSKY: '0'
 
+      - name: Cache Chrome Headless Shell
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/binaries/chrome-headless-shell-*
+          key: chrome-x86_64-unknown-linux-gnu-${{ hashFiles('scripts/download-chrome.mjs') }}
+
       - name: Download Chrome Headless Shell
         run: node scripts/download-chrome.mjs linux
 
+      - name: Cache Node.js Portable
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/binaries/node-*
+          key: node-x86_64-unknown-linux-gnu-${{ hashFiles('scripts/download-node.mjs') }}
+
       - name: Download Node.js portable
         run: node scripts/download-node.mjs linux
+
+      - name: Cache Lighthouse Bundle
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/resources/lighthouse-sidecar
+          key: lighthouse-${{ hashFiles('scripts/bundle-lighthouse.mjs', 'lighthouse-sidecar/package.json') }}
 
       - name: Bundle Lighthouse sidecar
         run: node scripts/bundle-lighthouse.mjs
@@ -360,8 +378,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          prefix-key: release-rust
-          shared-key: ${{ matrix.target }}
+          prefix-key: v1
+          shared-key: release-${{ matrix.target }}
           cache-on-failure: true
 
       - name: Install dependencies
@@ -369,11 +387,29 @@ jobs:
         env:
           HUSKY: '0'
 
+      - name: Cache Chrome Headless Shell
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/binaries/chrome-headless-shell-*
+          key: chrome-${{ matrix.target }}-${{ hashFiles('scripts/download-chrome.mjs') }}
+
       - name: Download Chrome Headless Shell
         run: node scripts/download-chrome.mjs ${{ matrix.sidecar_platform }}
 
+      - name: Cache Node.js Portable
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/binaries/node-*
+          key: node-${{ matrix.target }}-${{ hashFiles('scripts/download-node.mjs') }}
+
       - name: Download Node.js portable
         run: node scripts/download-node.mjs ${{ matrix.sidecar_platform }}
+
+      - name: Cache Lighthouse Bundle
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/resources/lighthouse-sidecar
+          key: lighthouse-${{ hashFiles('scripts/bundle-lighthouse.mjs', 'lighthouse-sidecar/package.json') }}
 
       - name: Bundle Lighthouse sidecar
         run: node scripts/bundle-lighthouse.mjs
@@ -398,20 +434,49 @@ jobs:
     name: Release Ready
     needs: [create-release, build-linux, build-other]
     if: always() && needs.create-release.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: linux-x64-docker
     steps:
       - name: Check build results
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "========================================"
-          echo "Release build results:"
+          echo "        Release Build Results"
           echo "========================================"
-          echo "Linux:       ${{ needs.build-linux.result }}"
-          echo "Windows:     ${{ needs.build-other.result }}"
+          echo ""
+
+          # Get individual job results via GitHub API
+          JOBS_JSON=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq '.jobs')
+
+          # Extract results for each platform
+          LINUX_RESULT=$(echo "$JOBS_JSON" | jq -r '.[] | select(.name == "Build Linux") | .conclusion // "pending"')
+          WIN_RESULT=$(echo "$JOBS_JSON" | jq -r '.[] | select(.name == "Build Windows") | .conclusion // "pending"')
+          MAC_ARM_RESULT=$(echo "$JOBS_JSON" | jq -r '.[] | select(.name == "Build macOS ARM") | .conclusion // "pending"')
+          MAC_INTEL_RESULT=$(echo "$JOBS_JSON" | jq -r '.[] | select(.name == "Build macOS Intel") | .conclusion // "pending"')
+
+          # Display results with status indicators
+          status_icon() {
+            case "$1" in
+              success) echo "✓" ;;
+              failure) echo "✗" ;;
+              cancelled) echo "○" ;;
+              *) echo "?" ;;
+            esac
+          }
+
+          echo "  $(status_icon $LINUX_RESULT) Linux:      $LINUX_RESULT"
+          echo "  $(status_icon $WIN_RESULT) Windows:    $WIN_RESULT"
+          echo "  $(status_icon $MAC_ARM_RESULT) macOS ARM:  $MAC_ARM_RESULT"
+          echo "  $(status_icon $MAC_INTEL_RESULT) macOS Intel: $MAC_INTEL_RESULT"
+          echo ""
           echo "========================================"
 
-          if [[ "${{ needs.build-linux.result }}" == "success" && "${{ needs.build-other.result }}" == "success" ]]; then
+          # Check overall result
+          if [[ "$LINUX_RESULT" == "success" && "$WIN_RESULT" == "success" && "$MAC_ARM_RESULT" == "success" && "$MAC_INTEL_RESULT" == "success" ]]; then
+            echo ""
             echo "All builds succeeded! Release is ready for review."
           else
-            echo "Some builds failed. Please check the logs."
+            echo ""
+            echo "Some builds failed. Check individual results above."
             exit 1
           fi
