@@ -8,9 +8,17 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '..');
+
+/**
+ * Ensure LF line endings (for prettier compatibility on Windows)
+ */
+function ensureLF(content) {
+  return content.replace(/\r\n/g, '\n');
+}
 
 // Files to update
 const FILES = {
@@ -19,7 +27,7 @@ const FILES = {
     update: (content, version) => {
       const json = JSON.parse(content);
       json.version = version;
-      return JSON.stringify(json, null, 2) + '\n';
+      return ensureLF(JSON.stringify(json, null, 2) + '\n');
     },
   },
   'tauri.conf.json': {
@@ -27,14 +35,14 @@ const FILES = {
     update: (content, version) => {
       const json = JSON.parse(content);
       json.version = version;
-      return JSON.stringify(json, null, 2) + '\n';
+      return ensureLF(JSON.stringify(json, null, 2) + '\n');
     },
   },
   'Cargo.toml': {
     path: join(ROOT_DIR, 'src-tauri', 'Cargo.toml'),
     update: (content, version) => {
       // Replace version in [package] section only (first occurrence)
-      return content.replace(/^(version\s*=\s*)"[^"]*"/m, `$1"${version}"`);
+      return ensureLF(content.replace(/^(version\s*=\s*)"[^"]*"/m, `$1"${version}"`));
     },
   },
 };
@@ -66,6 +74,23 @@ function main() {
     } catch (error) {
       console.error(`✗ Failed to update ${name}: ${error.message}`);
       process.exit(1);
+    }
+  }
+
+  // Run prettier on JSON files to ensure consistent formatting
+  const jsonFiles = Object.entries(FILES)
+    .filter(([name]) => name.endsWith('.json'))
+    .map(([, config]) => config.path);
+
+  if (jsonFiles.length > 0) {
+    try {
+      console.log('\nRunning prettier on JSON files...');
+      execSync(`npx prettier --write ${jsonFiles.join(' ')}`, {
+        cwd: ROOT_DIR,
+        stdio: 'inherit',
+      });
+    } catch {
+      console.warn('⚠ Prettier not available, skipping formatting');
     }
   }
 
