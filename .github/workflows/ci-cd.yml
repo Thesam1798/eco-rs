@@ -98,10 +98,13 @@ jobs:
       - name: Prettier
         run: pnpm format:check
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
       - name: Rustfmt
-        run: |
-          rustup component add rustfmt
-          cd src-tauri && cargo fmt --all -- --check
+        run: cd src-tauri && cargo fmt --all -- --check
 
   # ---------------------------------------------------------------------------
   # CI: Frontend Tests (~20s)
