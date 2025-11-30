@@ -323,6 +323,7 @@ jobs:
         with:
           path: src-tauri/binaries/chrome-headless-shell-*
           key: chrome-x86_64-unknown-linux-gnu-${{ hashFiles('scripts/download-chrome.mjs') }}
+          save-always: true
 
       - name: Download Chrome Headless Shell
         run: node scripts/download-chrome.mjs linux
@@ -332,6 +333,7 @@ jobs:
         with:
           path: src-tauri/binaries/node-*
           key: node-x86_64-unknown-linux-gnu-${{ hashFiles('scripts/download-node.mjs') }}
+          save-always: true
 
       - name: Download Node.js portable
         run: node scripts/download-node.mjs linux
@@ -341,6 +343,7 @@ jobs:
         with:
           path: src-tauri/resources/lighthouse-sidecar
           key: lighthouse-${{ runner.os }}-${{ hashFiles('scripts/bundle-lighthouse.mjs', 'lighthouse-sidecar/package.json') }}
+          save-always: true
 
       - name: Bundle Lighthouse sidecar
         run: node scripts/bundle-lighthouse.mjs
@@ -427,6 +430,7 @@ jobs:
         with:
           path: src-tauri/binaries/chrome-headless-shell-*
           key: chrome-${{ matrix.target }}-${{ hashFiles('scripts/download-chrome.mjs') }}
+          save-always: true
 
       - name: Download Chrome Headless Shell
         run: node scripts/download-chrome.mjs ${{ matrix.sidecar_platform }}
@@ -436,6 +440,7 @@ jobs:
         with:
           path: src-tauri/binaries/node-*
           key: node-${{ matrix.target }}-${{ hashFiles('scripts/download-node.mjs') }}
+          save-always: true
 
       - name: Download Node.js portable
         run: node scripts/download-node.mjs ${{ matrix.sidecar_platform }}
@@ -445,12 +450,29 @@ jobs:
         with:
           path: src-tauri/resources/lighthouse-sidecar
           key: lighthouse-${{ runner.os }}-${{ hashFiles('scripts/bundle-lighthouse.mjs', 'lighthouse-sidecar/package.json') }}
+          save-always: true
 
       - name: Bundle Lighthouse sidecar
         run: node scripts/bundle-lighthouse.mjs
 
       - name: Build Frontend
         run: pnpm build
+
+      - name: Determine Windows bundle type
+        id: win-bundles
+        if: matrix.name == 'Windows'
+        shell: bash
+        run: |
+          VERSION="${{ needs.update-version.outputs.version }}"
+          # MSI requires numeric-only pre-release identifiers
+          # Skip MSI for alpha/beta/rc versions, only build NSIS
+          if [[ "$VERSION" =~ (alpha|beta|rc) ]]; then
+            echo "args=--bundles nsis" >> $GITHUB_OUTPUT
+            echo "Pre-release version ($VERSION): building NSIS only"
+          else
+            echo "args=" >> $GITHUB_OUTPUT
+            echo "Stable version ($VERSION): building NSIS + MSI"
+          fi
 
       - name: Build Tauri and Upload to Release
         uses: tauri-apps/tauri-action@v0
@@ -460,7 +482,7 @@ jobs:
           NO_STRIP: ${{ matrix.name == 'macOS Intel' && 'true' || '' }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} ${{ steps.win-bundles.outputs.args }}
 
   # ---------------------------------------------------------------------------
   # Release: Notify Ready (tags only)
