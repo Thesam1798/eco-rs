@@ -1,29 +1,120 @@
 # =============================================================================
-# Release Workflow - Build & Publish on tags
+# Unified CI/CD Workflow
+# - Branches: lint + test
+# - Tags: lint + test → release (only if CI passes)
 # =============================================================================
-name: Release
+name: CI/CD
 
 on:
   push:
+    branches: [main, master]
     tags: ['v*']
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+  pull_request:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && !startsWith(github.ref, 'refs/tags/') }}
 
 env:
   NODE_VERSION: '22'
   PNPM_VERSION: '9'
 
+# =============================================================================
+# JOBS
+# =============================================================================
 jobs:
   # ---------------------------------------------------------------------------
-  # Update Version
+  # CI: Lint (always runs)
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: linux-x64-docker
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build
+        with:
+          rust-cache-shared-key: debug-linux
+          rust-cache-save: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
+          install-tauri-deps: 'true'
+          rust-components: rustfmt, clippy
+
+      - name: Create placeholder sidecars
+        run: |
+          mkdir -p src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu
+          touch src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu/chrome-headless-shell
+          touch src-tauri/binaries/node-x86_64-unknown-linux-gnu
+          mkdir -p src-tauri/resources/lighthouse-sidecar
+          echo '{}' > src-tauri/resources/lighthouse-sidecar/package.json
+
+      - name: ESLint
+        run: pnpm lint
+
+      - name: Prettier
+        run: pnpm format:check
+
+      - name: Rustfmt
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # CI: Test (always runs)
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: linux-x64-docker
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build
+        with:
+          rust-cache-shared-key: debug-linux
+          rust-cache-save: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
+          install-tauri-deps: 'true'
+
+      - name: Create placeholder sidecars
+        run: |
+          mkdir -p src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu
+          touch src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu/chrome-headless-shell
+          touch src-tauri/binaries/node-x86_64-unknown-linux-gnu
+          mkdir -p src-tauri/resources/lighthouse-sidecar
+          echo '{}' > src-tauri/resources/lighthouse-sidecar/package.json
+
+      - name: Run frontend tests
+        run: pnpm test:ci
+
+      - name: Run backend tests
+        working-directory: src-tauri
+        run: cargo test --all-features
+
+  # ---------------------------------------------------------------------------
+  # Release: Update Version (tags only, after CI passes)
   # ---------------------------------------------------------------------------
   update-version:
     name: Update Version
+    needs: [lint, test]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: linux-x64-docker
     outputs:
       version: ${{ steps.version.outputs.VERSION }}
@@ -64,11 +155,12 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
-  # Create Draft Release
+  # Release: Create Draft Release (tags only)
   # ---------------------------------------------------------------------------
   create-release:
     name: Create Draft Release
     needs: [update-version]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: linux-x64-docker
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
@@ -103,11 +195,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ---------------------------------------------------------------------------
-  # Build Linux
+  # Release: Build Linux (tags only)
   # ---------------------------------------------------------------------------
   build-linux:
     name: Build Linux
     needs: [create-release, update-version]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -141,11 +234,12 @@ jobs:
           args: --target x86_64-unknown-linux-gnu --bundles deb,rpm
 
   # ---------------------------------------------------------------------------
-  # Build Windows/macOS
+  # Release: Build Windows/macOS (tags only)
   # ---------------------------------------------------------------------------
   build-other:
     name: Build ${{ matrix.name }}
     needs: [create-release, update-version]
+    if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
       matrix:
@@ -215,7 +309,7 @@ jobs:
           args: --target ${{ matrix.target }} ${{ steps.win-bundles.outputs.args }}
 
   # ---------------------------------------------------------------------------
-  # Notify Ready
+  # Release: Notify Ready (tags only)
   # ---------------------------------------------------------------------------
   notify-ready:
     name: Release Ready
@@ -232,7 +326,7 @@ jobs:
           echo "========================================"
           echo ""
 
-          # Get individual job results via GitHub API (using curl instead of gh)
+          # Get individual job results via GitHub API
           JOBS_JSON=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
@@ -254,9 +348,9 @@ jobs:
             esac
           }
 
-          echo "  $(status_icon $LINUX_RESULT) Linux:      $LINUX_RESULT"
-          echo "  $(status_icon $WIN_RESULT) Windows:    $WIN_RESULT"
-          echo "  $(status_icon $MAC_ARM_RESULT) macOS ARM:  $MAC_ARM_RESULT"
+          echo "  $(status_icon $LINUX_RESULT) Linux:       $LINUX_RESULT"
+          echo "  $(status_icon $WIN_RESULT) Windows:     $WIN_RESULT"
+          echo "  $(status_icon $MAC_ARM_RESULT) macOS ARM:   $MAC_ARM_RESULT"
           echo "  $(status_icon $MAC_INTEL_RESULT) macOS Intel: $MAC_INTEL_RESULT"
           echo ""
           echo "========================================"
