@@ -36,27 +36,58 @@ env:
 # =============================================================================
 jobs:
   # ---------------------------------------------------------------------------
-  # CI: Lint + Test (branches/PRs only - tags skip CI)
+  # CI: Detect Changes (branches/PRs only)
   # ---------------------------------------------------------------------------
-  ci:
-    name: CI
+  changes:
+    name: Detect Changes
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'src/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'angular.json'
+              - 'tsconfig*.json'
+              - 'vite.config.ts'
+              - 'tailwind.config.js'
+            rust:
+              - 'src-tauri/**'
+              - 'Cargo.lock'
+
+  # ---------------------------------------------------------------------------
+  # CI: Fast Checks - Gate for other jobs (~30s)
+  # ---------------------------------------------------------------------------
+  fast-checks:
+    name: Fast Checks
+    needs: [changes]
     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Setup Build Environment
-        uses: ./.github/actions/setup-build
+      - uses: pnpm/action-setup@v4
         with:
-          rust-cache-shared-key: debug-linux
-          rust-cache-save: ${{ github.ref == 'refs/heads/master' }}
-          install-tauri-deps: 'true'
-          rust-components: rustfmt, clippy
-          create-sidecar-placeholders: 'true'
+          version: ${{ env.PNPM_VERSION }}
 
-      # Fast checks first (no Rust compilation)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: '0'
+
       - name: ESLint
         run: pnpm lint
 
@@ -64,18 +95,122 @@ jobs:
         run: pnpm format:check
 
       - name: Rustfmt
-        working-directory: src-tauri
-        run: cargo fmt --all -- --check
+        run: |
+          rustup component add rustfmt
+          cd src-tauri && cargo fmt --all -- --check
 
-      - name: Frontend tests
+  # ---------------------------------------------------------------------------
+  # CI: Frontend Tests (~20s)
+  # ---------------------------------------------------------------------------
+  frontend-tests:
+    name: Frontend Tests
+    needs: [changes, fast-checks]
+    if: ${{ !startsWith(github.ref, 'refs/tags/') && needs.changes.outputs.frontend == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: '0'
+
+      - name: Vitest
         run: pnpm test:ci
 
-      # Rust compilation (shared between clippy and tests)
+  # ---------------------------------------------------------------------------
+  # CI: Rust Clippy (~5 min)
+  # ---------------------------------------------------------------------------
+  rust-clippy:
+    name: Rust Clippy
+    needs: [changes, fast-checks]
+    if: ${{ !startsWith(github.ref, 'refs/tags/') && needs.changes.outputs.rust == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: chetan/git-restore-mtime-action@v2
+
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: build-essential libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          version: 1.0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          prefix-key: v3
+          shared-key: ci-clippy
+          cache-on-failure: true
+          cache-all-crates: true
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+
+      - name: Create sidecar placeholders
+        run: |
+          mkdir -p src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu
+          touch src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu/chrome-headless-shell
+          touch src-tauri/binaries/node-x86_64-unknown-linux-gnu
+          mkdir -p src-tauri/resources/lighthouse-sidecar
+          echo '{}' > src-tauri/resources/lighthouse-sidecar/package.json
+
       - name: Clippy
         working-directory: src-tauri
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Backend tests
+  # ---------------------------------------------------------------------------
+  # CI: Rust Tests (~5 min, parallel to clippy)
+  # ---------------------------------------------------------------------------
+  rust-tests:
+    name: Rust Tests
+    needs: [changes, fast-checks]
+    if: ${{ !startsWith(github.ref, 'refs/tags/') && needs.changes.outputs.rust == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: chetan/git-restore-mtime-action@v2
+
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: build-essential libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          version: 1.0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          prefix-key: v3
+          shared-key: ci-tests
+          cache-on-failure: true
+          cache-all-crates: true
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+
+      - name: Create sidecar placeholders
+        run: |
+          mkdir -p src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu
+          touch src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu/chrome-headless-shell
+          touch src-tauri/binaries/node-x86_64-unknown-linux-gnu
+          mkdir -p src-tauri/resources/lighthouse-sidecar
+          echo '{}' > src-tauri/resources/lighthouse-sidecar/package.json
+
+      - name: Cargo test
         working-directory: src-tauri
         run: cargo test --all-features
 
