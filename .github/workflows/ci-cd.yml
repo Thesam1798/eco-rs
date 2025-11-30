@@ -36,7 +36,7 @@ env:
 # =============================================================================
 jobs:
   # ---------------------------------------------------------------------------
-  # CI: Detect Changes (branches/PRs only)
+  # CI: Detect Changes (branches/PRs only - not needed for tags)
   # ---------------------------------------------------------------------------
   changes:
     name: Detect Changes
@@ -65,12 +65,11 @@ jobs:
               - 'Cargo.lock'
 
   # ---------------------------------------------------------------------------
-  # CI: Fast Checks - Gate for other jobs (~30s)
+  # CI: Fast Checks - Gate for all other jobs (~30s)
+  # Runs on BOTH branches and tags to ensure quality before release
   # ---------------------------------------------------------------------------
   fast-checks:
     name: Fast Checks
-    needs: [changes]
-    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -215,10 +214,11 @@ jobs:
         run: cargo test --all-features
 
   # ---------------------------------------------------------------------------
-  # Release: Update Version (tags only)
+  # Release: Update Version (tags only, after fast-checks pass)
   # ---------------------------------------------------------------------------
   update-version:
     name: Update Version
+    needs: [fast-checks]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     outputs:
