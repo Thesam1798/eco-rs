@@ -40,17 +40,12 @@ runs:
     - name: Restore file timestamps for cache
       uses: chetan/git-restore-mtime-action@v2
 
-    - name: Install Tauri dependencies (Linux)
+    - name: Cache and install Tauri dependencies (Linux)
       if: inputs.install-tauri-deps == 'true' && runner.os == 'Linux'
-      shell: bash
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          build-essential \
-          libwebkit2gtk-4.1-dev \
-          libappindicator3-dev \
-          librsvg2-dev \
-          patchelf
+      uses: awalsh128/cache-apt-pkgs-action@latest
+      with:
+        packages: build-essential libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+        version: 1.0
 
     - name: Setup pnpm
       uses: pnpm/action-setup@v4
@@ -73,7 +68,7 @@ runs:
       uses: Swatinem/rust-cache@v2
       with:
         workspaces: src-tauri
-        prefix-key: v2
+        prefix-key: v3
         shared-key: ${{ inputs.rust-cache-shared-key }}
         cache-on-failure: true
         cache-all-crates: true
