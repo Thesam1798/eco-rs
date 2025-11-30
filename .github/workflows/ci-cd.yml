@@ -52,14 +52,7 @@ jobs:
           rust-cache-save: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
           install-tauri-deps: 'true'
           rust-components: rustfmt, clippy
-
-      - name: Create placeholder sidecars
-        run: |
-          mkdir -p src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu
-          touch src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu/chrome-headless-shell
-          touch src-tauri/binaries/node-x86_64-unknown-linux-gnu
-          mkdir -p src-tauri/resources/lighthouse-sidecar
-          echo '{}' > src-tauri/resources/lighthouse-sidecar/package.json
+          create-sidecar-placeholders: 'true'
 
       - name: ESLint
         run: pnpm lint
@@ -92,14 +85,7 @@ jobs:
           rust-cache-shared-key: debug-linux
           rust-cache-save: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
           install-tauri-deps: 'true'
-
-      - name: Create placeholder sidecars
-        run: |
-          mkdir -p src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu
-          touch src-tauri/binaries/chrome-headless-shell-x86_64-unknown-linux-gnu/chrome-headless-shell
-          touch src-tauri/binaries/node-x86_64-unknown-linux-gnu
-          mkdir -p src-tauri/resources/lighthouse-sidecar
-          echo '{}' > src-tauri/resources/lighthouse-sidecar/package.json
+          create-sidecar-placeholders: 'true'
 
       - name: Run frontend tests
         run: pnpm test:ci
