@@ -389,6 +389,10 @@ jobs:
           platform: ${{ matrix.sidecar_platform }}
           target: ${{ matrix.target }}
 
+      - name: Install create-dmg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install create-dmg
+
       - name: Build Frontend
         run: pnpm build
 
