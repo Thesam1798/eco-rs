@@ -880,6 +880,7 @@ version = "0.1.0"
 dependencies = [
  "chromiumoxide",
  "chrono",
+ "dirs",
  "futures",
  "serde",
  "serde_json",
