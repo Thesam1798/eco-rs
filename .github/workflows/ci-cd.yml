@@ -30,11 +30,10 @@ env:
 # =============================================================================
 jobs:
   # ---------------------------------------------------------------------------
-  # CI: Lint (branches and PRs only)
+  # CI: Lint (all events including releases for safety)
   # ---------------------------------------------------------------------------
   lint:
     name: Lint
-    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +68,9 @@ jobs:
         with:
           workspaces: src-tauri
           prefix-key: ci-rust
-          shared-key: lint
+          shared-key: ci-linux
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
@@ -99,11 +100,10 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
   # ---------------------------------------------------------------------------
-  # CI: Test (branches and PRs only)
+  # CI: Test (all events including releases for safety)
   # ---------------------------------------------------------------------------
   test:
     name: Test
-    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -136,7 +136,9 @@ jobs:
         with:
           workspaces: src-tauri
           prefix-key: ci-rust
-          shared-key: test
+          shared-key: ci-linux
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
@@ -200,7 +202,7 @@ jobs:
   # ---------------------------------------------------------------------------
   create-release:
     name: Create Draft Release
-    needs: update-version
+    needs: [update-version, lint, test]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     outputs:
