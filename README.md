@@ -75,17 +75,14 @@ Téléchargez l'installeur pour votre plateforme depuis les [Releases](../../rel
 git clone <repository-url>
 cd eco-app-rs
 
-# Install dependencies
+# Install dependencies (downloads Chrome, Node.js portable, bundles Lighthouse)
 pnpm install
 
-# Download Chrome for Testing
-pnpm download:chrome
+# Start Tauri development server (frontend + backend)
+pnpm tauri:dev
 
-# Build Lighthouse sidecar
-pnpm build:sidecar
-
-# Start development server
-pnpm tauri dev
+# Or start Angular only (frontend dev server)
+pnpm start
 ```
 
 ### Build
@@ -98,35 +95,92 @@ pnpm tauri build
 ### Tests
 
 ```bash
-# Frontend tests
+# Frontend tests (watch mode)
 pnpm test
+
+# Frontend tests (CI mode, single run)
+pnpm test:ci
 
 # Rust tests
 cd src-tauri && cargo test
 
-# Lint
-pnpm lint
-cargo clippy
+# Lint all (TypeScript + Rust)
+pnpm lint:all
+```
+
+### Setup manuel des sidecars
+
+Si le postinstall échoue (proxy, etc.), vous pouvez configurer manuellement :
+
+```bash
+# Télécharger Chrome Headless Shell
+pnpm download:chrome
+
+# Télécharger Node.js portable
+pnpm download:node
+
+# Bundler Lighthouse sidecar
+pnpm bundle:lighthouse
+
+# Ou tout en une commande
+pnpm setup:sidecar
 ```
 
 ## Available Scripts
 
+### Development
+
+| Script           | Description                               |
+| ---------------- | ----------------------------------------- |
+| `pnpm start`     | Start Angular dev server only             |
+| `pnpm tauri:dev` | Start Tauri dev mode (frontend + backend) |
+| `pnpm tauri`     | Run Tauri CLI commands                    |
+
+### Build
+
+| Script             | Description                  |
+| ------------------ | ---------------------------- |
+| `pnpm build`       | Build Angular for production |
+| `pnpm build:tauri` | Build Rust backend only      |
+| `pnpm build:all`   | Build frontend + backend     |
+| `pnpm tauri build` | Build full Tauri application |
+
+### Testing
+
+| Script               | Description                    |
+| -------------------- | ------------------------------ |
+| `pnpm test`          | Run tests with Vitest (watch)  |
+| `pnpm test:ui`       | Run tests with Vitest UI       |
+| `pnpm test:ci`       | Run tests once (CI mode)       |
+| `pnpm test:coverage` | Run tests with coverage report |
+
+### Linting & Formatting
+
+| Script              | Description                        |
+| ------------------- | ---------------------------------- |
+| `pnpm lint`         | Run ESLint                         |
+| `pnpm lint:fix`     | Fix ESLint errors automatically    |
+| `pnpm lint:rust`    | Run Cargo Clippy                   |
+| `pnpm lint:all`     | Lint TypeScript + Rust             |
+| `pnpm format`       | Format all files with Prettier     |
+| `pnpm format:check` | Check formatting without modifying |
+
+### Sidecars & Setup
+
+| Script                   | Description                          |
+| ------------------------ | ------------------------------------ |
+| `pnpm download:chrome`   | Download Chrome Headless Shell       |
+| `pnpm download:node`     | Download Node.js portable            |
+| `pnpm bundle:lighthouse` | Bundle Lighthouse sidecar            |
+| `pnpm setup:sidecar`     | Download all + bundle (manual setup) |
+| `pnpm setup`             | Force re-run postinstall setup       |
+
+### Release
+
 | Script                 | Description                         |
 | ---------------------- | ----------------------------------- |
-| `pnpm start`           | Start Angular development server    |
-| `pnpm build`           | Build Angular for production        |
-| `pnpm test`            | Run unit tests with Vitest          |
-| `pnpm test:ui`         | Run tests with Vitest UI            |
-| `pnpm test:coverage`   | Run tests with coverage report      |
-| `pnpm lint`            | Run ESLint on all files             |
-| `pnpm lint:fix`        | Fix ESLint errors automatically     |
-| `pnpm format`          | Format all files with Prettier      |
-| `pnpm format:check`    | Check formatting without modifying  |
-| `pnpm download:chrome` | Download Chrome for Testing         |
-| `pnpm build:sidecar`   | Build Lighthouse sidecar            |
+| `pnpm check`           | Run lint + tests + build (CI check) |
 | `pnpm prepare:release` | Prepare a new release (tests + tag) |
-| `pnpm tauri dev`       | Start Tauri in development mode     |
-| `pnpm tauri build`     | Build Tauri application             |
 
 ## Project Structure
 
@@ -157,8 +211,10 @@ eco-app-rs/
 │   │   └── node-main.mjs         # Main script (ESM, Flow API)
 │   └── package.json
 ├── scripts/                      # Build scripts
-│   ├── download-chrome.js        # Download Chrome for Testing
-│   ├── build-sidecar.js          # Build sidecar executable
+│   ├── postinstall.mjs           # Auto-setup on pnpm install
+│   ├── download-chrome.mjs       # Download Chrome Headless Shell
+│   ├── download-node.mjs         # Download Node.js portable
+│   ├── bundle-lighthouse.mjs     # Bundle Lighthouse sidecar
 │   └── prepare-release.js        # Release preparation
 ├── .github/workflows/            # GitHub Actions
 │   ├── ci.yml                    # CI (lint + tests)
