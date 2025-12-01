@@ -66,7 +66,10 @@ function detectPlatform() {
 
 function getProxyAgent() {
   const proxyUrl =
-    process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy;
   return proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
 }
 
