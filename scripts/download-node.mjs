@@ -16,7 +16,9 @@ import {
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
-import https from 'node:https';
+import { Writable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { fetch, ProxyAgent } from 'undici';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = dirname(__dirname);
@@ -73,42 +75,43 @@ function detectPlatform() {
   return null;
 }
 
-function downloadFile(url, dest) {
-  return new Promise((resolve, reject) => {
-    const file = createWriteStream(dest);
-    log(`Downloading from ${url}...`);
+function getProxyAgent() {
+  const proxyUrl =
+    process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+  return proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
+}
 
-    const request = (url) => {
-      https
-        .get(url, (response) => {
-          if (response.statusCode === 302 || response.statusCode === 301) {
-            request(response.headers.location);
-            return;
-          }
+async function downloadFile(url, dest) {
+  log(`Downloading from ${url}...`);
+  const dispatcher = getProxyAgent();
 
-          const total = parseInt(response.headers['content-length'], 10);
-          let downloaded = 0;
+  const response = await fetch(url, { dispatcher });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
 
-          response.on('data', (chunk) => {
-            downloaded += chunk.length;
-            const percent = ((downloaded / total) * 100).toFixed(1);
-            process.stdout.write(`\r[download-node] Progress: ${percent}%`);
-          });
+  const total = parseInt(response.headers.get('content-length'), 10);
+  let downloaded = 0;
 
-          response.pipe(file);
-          file.on('finish', () => {
-            console.log('');
-            file.close(resolve);
-          });
-        })
-        .on('error', (err) => {
-          unlinkSync(dest);
-          reject(err);
-        });
-    };
+  const file = createWriteStream(dest);
 
-    request(url);
-  });
+  await pipeline(
+    response.body,
+    new Writable({
+      write(chunk, encoding, callback) {
+        downloaded += chunk.length;
+        if (total) {
+          const percent = ((downloaded / total) * 100).toFixed(1);
+          process.stdout.write(`\r[download-node] Progress: ${percent}%`);
+        }
+        file.write(chunk, callback);
+      },
+      final(callback) {
+        console.log('');
+        file.end(callback);
+      },
+    })
+  );
 }
 
 function extractArchive(archivePath, destDir, archiveType) {
