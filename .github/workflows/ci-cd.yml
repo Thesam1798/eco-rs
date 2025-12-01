@@ -86,7 +86,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          # Note: pnpm cache disabled for self-hosted runners (store path detection fails)
+          cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile
         env:
@@ -124,6 +124,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile
         env:
