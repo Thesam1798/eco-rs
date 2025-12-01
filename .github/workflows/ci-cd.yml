@@ -481,10 +481,10 @@ jobs:
 
           # Check overall result
           SUCCESS_COUNT=0
-          [[ "$LINUX_RESULT" == "success" ]] && ((SUCCESS_COUNT++))
-          [[ "$WIN_RESULT" == "success" ]] && ((SUCCESS_COUNT++))
-          [[ "$MAC_ARM_RESULT" == "success" ]] && ((SUCCESS_COUNT++))
-          [[ "$MAC_INTEL_RESULT" == "success" ]] && ((SUCCESS_COUNT++))
+          [[ "$LINUX_RESULT" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1)) || true
+          [[ "$WIN_RESULT" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1)) || true
+          [[ "$MAC_ARM_RESULT" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1)) || true
+          [[ "$MAC_INTEL_RESULT" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1)) || true
 
           echo ""
           if [[ $SUCCESS_COUNT -eq 4 ]]; then
