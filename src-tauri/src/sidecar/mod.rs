@@ -5,4 +5,4 @@
 
 mod lighthouse;
 
-pub use lighthouse::{run_lighthouse_analysis, LighthouseResult};
+pub use lighthouse::{run_lighthouse_analysis, AnalysisState, LighthouseResult};
