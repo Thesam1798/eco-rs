@@ -1,5 +1,6 @@
 import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
+import { openPath } from '@tauri-apps/plugin-opener';
 import { AnalyzerService } from '../../core/services';
 import { EcoindexCardComponent } from './components/ecoindex-card/ecoindex-card.component';
 import { LighthouseScoresComponent } from './components/lighthouse-scores/lighthouse-scores.component';
@@ -35,15 +36,15 @@ import { LighthouseScoresComponent } from './components/lighthouse-scores/lighth
               <app-lighthouse-scores [result]="result.data" />
             </div>
 
-            <!-- Download HTML Report -->
-            @if (result.data.rawLighthouseReport) {
+            <!-- Open HTML Report -->
+            @if (result.data.htmlReportPath) {
               <div class="mt-6">
                 <button
                   type="button"
-                  (click)="onDownloadReport(result.data.rawLighthouseReport!)"
+                  (click)="onOpenReport(result.data.htmlReportPath!)"
                   class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
                 >
-                  Télécharger le rapport HTML
+                  Ouvrir le rapport Lighthouse
                 </button>
               </div>
             }
@@ -74,13 +75,12 @@ export class ResultsComponent {
     this.router.navigate(['/']);
   }
 
-  onDownloadReport(html: string): void {
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `lighthouse-report-${Date.now()}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+  async onOpenReport(reportPath: string): Promise<void> {
+    try {
+      // Open the HTML report in the default browser
+      await openPath(reportPath);
+    } catch (error) {
+      console.error('Failed to open HTML report:', error);
+    }
   }
 }
