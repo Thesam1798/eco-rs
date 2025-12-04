@@ -1,5 +1,4 @@
 import { Component, input, ChangeDetectionStrategy } from '@angular/core';
-import type { AnalysisMode } from '../../../../core/models';
 
 @Component({
   selector: 'app-loading-indicator',
@@ -18,13 +17,7 @@ import type { AnalysisMode } from '../../../../core/models';
 
       <!-- Message -->
       <p class="mt-6 text-lg font-medium text-gray-700">Analyse en cours...</p>
-      <p class="mt-2 text-sm text-gray-500">
-        @if (mode() === 'quick') {
-          Collecte des métriques EcoIndex (~5 secondes)
-        } @else {
-          Exécution de Lighthouse (~30 secondes)
-        }
-      </p>
+      <p class="mt-2 text-sm text-gray-500">Exécution de Lighthouse (~30 secondes)</p>
 
       <!-- URL -->
       @if (url()) {
@@ -36,6 +29,5 @@ import type { AnalysisMode } from '../../../../core/models';
   `,
 })
 export class LoadingIndicatorComponent {
-  readonly mode = input<AnalysisMode>('quick');
   readonly url = input<string>('');
 }
