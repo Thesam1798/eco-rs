@@ -206,6 +206,9 @@ pub struct RequestDetail {
     pub duration: f64,
     /// Whether the resource was served from cache.
     pub from_cache: bool,
+    /// Cache lifetime in milliseconds (from uses-long-cache-ttl audit).
+    #[serde(default)]
+    pub cache_lifetime_ms: u64,
 }
 
 /// Métriques Best Practices.

@@ -104,6 +104,8 @@ export interface RequestDetail {
   duration: number;
   /** Whether the resource was served from cache */
   fromCache: boolean;
+  /** Cache lifetime in milliseconds (from uses-long-cache-ttl audit) */
+  cacheLifetimeMs: number;
 }
 
 /**
