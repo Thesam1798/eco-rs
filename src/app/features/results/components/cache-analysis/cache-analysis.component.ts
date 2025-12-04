@@ -1,12 +1,9 @@
 import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
-import type { CacheItem } from '../../../../core/models';
-import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
+import type { RequestDetail } from '../../../../core/models';
 
 interface CacheGroup {
   label: string;
   count: number;
-  totalBytes: number;
-  wastedBytes: number;
   color: string;
   percentage: number;
 }
@@ -19,24 +16,13 @@ const MS_WEEK = 604800000;
   selector: 'app-cache-analysis',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormatBytesPipe],
   template: `
     <div class="bg-white rounded-2xl shadow-lg p-6">
       <h3 class="text-lg font-semibold text-gray-800 mb-4">Analyse du cache</h3>
 
-      @if (cacheItems().length === 0) {
-        <p class="text-gray-500 text-sm">Toutes les ressources ont une bonne politique de cache</p>
+      @if (requests().length === 0) {
+        <p class="text-gray-500 text-sm">Aucune ressource a analyser</p>
       } @else {
-        <div class="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
-          <p class="text-sm text-amber-800">
-            <span class="font-semibold">{{ cacheItems().length }}</span> ressource(s) avec un TTL
-            cache court ou absent
-          </p>
-          <p class="text-xs text-amber-600 mt-1">
-            Perte potentielle : {{ totalWastedBytes() | formatBytes }}
-          </p>
-        </div>
-
         <!-- Grouped by TTL -->
         <div class="space-y-3">
           @for (group of cacheGroups(); track group.label) {
@@ -60,7 +46,7 @@ const MS_WEEK = 604800000;
         <div class="mt-4 pt-4 border-t border-gray-100">
           <p class="text-sm text-gray-500">
             Total :
-            <span class="font-medium text-gray-700">{{ cacheItems().length }}</span> ressources
+            <span class="font-medium text-gray-700">{{ requests().length }}</span> ressources
           </p>
         </div>
       }
@@ -68,87 +54,84 @@ const MS_WEEK = 604800000;
   `,
 })
 export class CacheAnalysisComponent {
-  readonly cacheAnalysis = input.required<CacheItem[]>();
-
-  readonly cacheItems = computed(() =>
-    this.cacheAnalysis()
-      .filter((item) => item.cacheLifetimeMs < MS_WEEK)
-      .sort((a, b) => a.cacheLifetimeMs - b.cacheLifetimeMs)
-  );
+  readonly requests = input.required<RequestDetail[]>();
 
   readonly cacheGroups = computed((): CacheGroup[] => {
-    const items = this.cacheItems();
+    const items = this.requests();
     const total = items.length;
     if (total === 0) return [];
 
     const groups = {
-      none: { count: 0, totalBytes: 0, wastedBytes: 0 },
-      hour: { count: 0, totalBytes: 0, wastedBytes: 0 },
-      day: { count: 0, totalBytes: 0, wastedBytes: 0 },
-      week: { count: 0, totalBytes: 0, wastedBytes: 0 },
+      none: 0,
+      hour: 0,
+      day: 0,
+      week: 0,
+      good: 0,
     };
 
     for (const item of items) {
       const ms = item.cacheLifetimeMs;
-      let group: keyof typeof groups;
 
       if (ms === 0) {
-        group = 'none';
+        groups.none++;
       } else if (ms < MS_HOUR) {
-        group = 'hour';
+        groups.hour++;
       } else if (ms < MS_DAY) {
-        group = 'day';
+        groups.day++;
+      } else if (ms < MS_WEEK) {
+        groups.week++;
       } else {
-        group = 'week';
+        groups.good++;
       }
-
-      groups[group].count++;
-      groups[group].totalBytes += item.totalBytes;
-      groups[group].wastedBytes += item.wastedBytes;
     }
 
     const result: CacheGroup[] = [];
 
-    if (groups.none.count > 0) {
+    if (groups.none > 0) {
       result.push({
         label: 'Aucun',
-        ...groups.none,
+        count: groups.none,
         color: '#ef4444', // red
-        percentage: (groups.none.count / total) * 100,
+        percentage: (groups.none / total) * 100,
       });
     }
 
-    if (groups.hour.count > 0) {
+    if (groups.hour > 0) {
       result.push({
         label: '< 1 heure',
-        ...groups.hour,
+        count: groups.hour,
         color: '#f59e0b', // amber
-        percentage: (groups.hour.count / total) * 100,
+        percentage: (groups.hour / total) * 100,
       });
     }
 
-    if (groups.day.count > 0) {
+    if (groups.day > 0) {
       result.push({
         label: '< 1 jour',
-        ...groups.day,
+        count: groups.day,
         color: '#eab308', // yellow
-        percentage: (groups.day.count / total) * 100,
+        percentage: (groups.day / total) * 100,
       });
     }
 
-    if (groups.week.count > 0) {
+    if (groups.week > 0) {
       result.push({
         label: '< 7 jours',
-        ...groups.week,
+        count: groups.week,
         color: '#84cc16', // lime
-        percentage: (groups.week.count / total) * 100,
+        percentage: (groups.week / total) * 100,
+      });
+    }
+
+    if (groups.good > 0) {
+      result.push({
+        label: '>= 7 jours',
+        count: groups.good,
+        color: '#10b981', // green
+        percentage: (groups.good / total) * 100,
       });
     }
 
     return result;
   });
-
-  readonly totalWastedBytes = computed(() =>
-    this.cacheItems().reduce((sum, item) => sum + item.wastedBytes, 0)
-  );
 }
