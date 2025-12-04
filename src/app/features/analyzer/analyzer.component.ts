@@ -1,16 +1,14 @@
-import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { AnalyzerService, HistoryService } from '../../core/services';
-import type { AnalysisMode } from '../../core/models';
 import { UrlInputComponent } from './components/url-input/url-input.component';
-import { AnalysisOptionsComponent } from './components/analysis-options/analysis-options.component';
 import { LoadingIndicatorComponent } from './components/loading-indicator/loading-indicator.component';
 
 @Component({
   selector: 'app-analyzer',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [UrlInputComponent, AnalysisOptionsComponent, LoadingIndicatorComponent],
+  imports: [UrlInputComponent, LoadingIndicatorComponent],
   template: `
     <div class="min-h-screen bg-gray-50 py-12 px-4">
       <div class="max-w-2xl mx-auto">
@@ -22,12 +20,11 @@ import { LoadingIndicatorComponent } from './components/loading-indicator/loadin
 
         @if (analyzer.isLoading()) {
           <!-- Loading -->
-          <app-loading-indicator [mode]="mode()" [url]="analyzer.currentUrl()" />
+          <app-loading-indicator [url]="analyzer.currentUrl()" />
         } @else {
           <!-- Form -->
-          <div class="bg-white rounded-2xl shadow-lg p-8 space-y-6">
+          <div class="bg-white rounded-2xl shadow-lg p-8">
             <app-url-input (urlSubmit)="onAnalyze($event)" />
-            <app-analysis-options [(mode)]="mode" [(includeHtml)]="includeHtml" />
           </div>
 
           <!-- Error -->
@@ -75,17 +72,8 @@ export class AnalyzerComponent {
   readonly history = inject(HistoryService);
   private readonly router = inject(Router);
 
-  readonly mode = signal<AnalysisMode>('quick');
-  readonly includeHtml = signal(false);
-
   async onAnalyze(url: string): Promise<void> {
-    const currentMode = this.mode();
-
-    if (currentMode === 'quick') {
-      await this.analyzer.analyzeQuick(url);
-    } else {
-      await this.analyzer.analyzeFull(url, this.includeHtml());
-    }
+    await this.analyzer.analyzeFull(url, true);
 
     if (this.analyzer.hasResult()) {
       const result = this.analyzer.result();
