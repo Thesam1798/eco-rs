@@ -59,6 +59,38 @@ export interface SeoMetrics {
 }
 
 /**
+ * Detailed information about a single HTTP request
+ */
+export interface RequestDetail {
+  /** Full URL of the request */
+  url: string;
+  /** Domain/hostname of the request */
+  domain: string;
+  /** Protocol used (h2, http/1.1, etc.) */
+  protocol: string;
+  /** HTTP status code */
+  statusCode: number;
+  /** MIME type of the response */
+  mimeType: string;
+  /** Resource type (Document, Script, Stylesheet, Image, Font, XHR, Fetch, Other) */
+  resourceType: string;
+  /** Transfer size in bytes (compressed, over the wire) */
+  transferSize: number;
+  /** Resource size in bytes (decompressed) */
+  resourceSize: number;
+  /** Request priority (VeryHigh, High, Medium, Low, VeryLow) */
+  priority: string;
+  /** Start time in milliseconds (relative to navigation start) */
+  startTime: number;
+  /** End time in milliseconds (relative to navigation start) */
+  endTime: number;
+  /** Duration in milliseconds */
+  duration: number;
+  /** Whether the resource was served from cache */
+  fromCache: boolean;
+}
+
+/**
  * Résultat Lighthouse complet
  */
 export interface LighthouseResult {
@@ -69,5 +101,8 @@ export interface LighthouseResult {
   accessibility: AccessibilityMetrics;
   bestPractices: BestPracticesMetrics;
   seo: SeoMetrics;
-  rawLighthouseReport?: string;
+  /** Detailed information about each HTTP request */
+  requests?: RequestDetail[];
+  /** Path to the HTML report file (if requested) */
+  htmlReportPath?: string;
 }

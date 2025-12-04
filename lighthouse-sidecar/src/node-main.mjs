@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * Lighthouse Sidecar CLI - Node.js version
+ * Lighthouse Sidecar CLI - Node.js version (Simplified)
+ *
+ * Returns raw metrics only - EcoIndex calculation is done in Rust backend.
  *
  * Aligned with EcoindexApp methodology:
  * - Uses Lighthouse Flow API (startFlow)
@@ -14,6 +16,40 @@
 
 import { startFlow } from 'lighthouse';
 import puppeteer from 'puppeteer-core';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+// ============================================================================
+// Global state for cleanup on exit
+// ============================================================================
+
+/** Global browser instance for cleanup on signal */
+let activeBrowser = null;
+
+/**
+ * Cleanup function to close browser on exit signals
+ */
+async function cleanup() {
+  if (activeBrowser) {
+    try {
+      await activeBrowser.close();
+    } catch {
+      // Ignore errors during cleanup
+    }
+    activeBrowser = null;
+  }
+  process.exit(0);
+}
+
+// Register signal handlers for graceful shutdown
+process.on('SIGTERM', cleanup);
+process.on('SIGINT', cleanup);
+process.on('SIGHUP', cleanup);
+
+// ============================================================================
+// Chrome configuration
+// ============================================================================
 
 /**
  * Chrome flags for headless mode (matching EcoindexApp)
@@ -60,21 +96,6 @@ const LIGHTHOUSE_CONFIG = {
     maxWaitForLoad: 45000,
   },
 };
-
-/**
- * EcoIndex quantiles (official values from cnumr/ecoindex_reference)
- */
-const QUANTILES_DOM = [
-  0, 47, 75, 159, 233, 298, 358, 417, 476, 537, 603, 674, 753, 843, 949, 1076, 1237, 1459, 1801,
-  2479, 594601,
-];
-const QUANTILES_REQ = [
-  0, 2, 15, 25, 34, 42, 49, 56, 63, 70, 78, 86, 95, 105, 117, 130, 147, 170, 205, 281, 3920,
-];
-const QUANTILES_SIZE = [
-  0, 1.37, 144.7, 319.53, 479.46, 631.97, 783.38, 937.91, 1098.62, 1265.47, 1448.32, 1648.27,
-  1876.08, 2142.06, 2465.37, 2866.31, 3401.59, 4155.73, 5400.08, 8037.54, 223212.26,
-];
 
 /**
  * Parse CLI arguments
@@ -143,84 +164,144 @@ async function executeScrollPattern(page) {
 
 /**
  * Count DOM elements excluding SVG children (EcoIndex methodology)
- * Note: Does NOT count Shadow DOM elements (matching EcoindexApp behavior)
+ * Includes Shadow DOM elements and iframe contents
  */
 async function countDOMNodesWithoutSVG(page) {
   return page.evaluate(() => {
-    // Simple count: body descendants minus SVG children
-    // Does NOT include Shadow DOM elements (matching EcoindexApp)
-    const allBodyNodes = document.body.querySelectorAll('*').length;
-    const svgChildren = Array.from(document.body.querySelectorAll('svg')).reduce(
-      (acc, svg) => acc + svg.querySelectorAll('*').length,
-      0
-    );
-    return allBodyNodes - svgChildren;
+    function countInRoot(root) {
+      let total = 0;
+      let svgChildren = 0;
+
+      const elements = root.querySelectorAll('*');
+      total += elements.length;
+
+      // Count SVG children to subtract (SVG element itself is counted)
+      const svgs = root.querySelectorAll('svg');
+      for (const svg of svgs) {
+        svgChildren += svg.querySelectorAll('*').length;
+      }
+
+      // Traverse shadow DOM
+      for (const el of elements) {
+        if (el.shadowRoot) {
+          const shadowResult = countInRoot(el.shadowRoot);
+          total += shadowResult.total;
+          svgChildren += shadowResult.svgChildren;
+        }
+
+        // Traverse iframe content if accessible (same-origin)
+        if (el.tagName.toLowerCase() === 'iframe') {
+          try {
+            const iframeDoc = el.contentDocument || el.contentWindow?.document;
+            if (iframeDoc) {
+              const iframeResult = countInRoot(iframeDoc);
+              total += iframeResult.total;
+              svgChildren += iframeResult.svgChildren;
+            }
+          } catch {
+            // Cross-origin iframe - cannot access content
+          }
+        }
+      }
+
+      return { total, svgChildren };
+    }
+
+    const result = countInRoot(document);
+    return result.total - result.svgChildren;
   });
 }
 
 /**
- * Compute quantile position for a value
- */
-function computeQuantile(value, quantiles) {
-  for (let i = 1; i < quantiles.length; i++) {
-    if (value < quantiles[i]) {
-      return i - 1 + (value - quantiles[i - 1]) / (quantiles[i] - quantiles[i - 1]);
-    }
-  }
-  return quantiles.length - 1;
-}
-
-/**
- * Calculate EcoIndex score and grade
- */
-function calculateEcoIndex(dom, requests, sizeKb) {
-  const domQ = computeQuantile(dom, QUANTILES_DOM);
-  const reqQ = computeQuantile(requests, QUANTILES_REQ);
-  const sizeQ = computeQuantile(sizeKb, QUANTILES_SIZE);
-
-  const score = 100 - (5 * (3 * domQ + 2 * reqQ + sizeQ)) / 6;
-  const clampedScore = Math.max(0, Math.min(100, score));
-
-  let grade;
-  if (clampedScore >= 80) grade = 'A';
-  else if (clampedScore >= 70) grade = 'B';
-  else if (clampedScore >= 55) grade = 'C';
-  else if (clampedScore >= 40) grade = 'D';
-  else if (clampedScore >= 25) grade = 'E';
-  else if (clampedScore >= 10) grade = 'F';
-  else grade = 'G';
-
-  return { score: clampedScore, grade };
-}
-
-/**
  * Extract network statistics from Flow result
+ * Uses total-byte-weight audit for accurate size (works even with cached resources)
  */
 function extractNetworkStats(lhr) {
   const networkRequestsAudit = lhr.audits?.['network-requests'];
-  let totalCompressedSize = 0;
+  const totalByteWeightAudit = lhr.audits?.['total-byte-weight'];
+
+  let totalTransferSize = 0;
   let requestCount = 0;
 
-  if (!networkRequestsAudit?.details?.items) {
-    return { requestCount: 0, totalCompressedSize: 0 };
+  // Get total transfer size from total-byte-weight audit (more reliable)
+  if (totalByteWeightAudit?.numericValue) {
+    totalTransferSize = totalByteWeightAudit.numericValue;
   }
 
+  if (!networkRequestsAudit?.details?.items) {
+    return { requestCount: 0, totalTransferSize };
+  }
+
+  // Count requests and calculate size from individual items if total-byte-weight not available
+  let itemsTransferSize = 0;
   for (const record of networkRequestsAudit.details.items) {
     const url = record.url || '';
+    // Skip data: and blob: URLs
     if (url.startsWith('data:') || url.startsWith('blob:')) {
       continue;
     }
 
-    const transferSize = record.transferSize || 0;
-    if (transferSize === 0) {
-      continue;
-    }
-
-    totalCompressedSize += transferSize;
+    // Count all HTTP requests
     requestCount += 1;
+
+    // Sum transfer sizes (use resourceSize as fallback for cached resources)
+    const size = record.transferSize || record.resourceSize || 0;
+    itemsTransferSize += size;
   }
 
-  return { requestCount, totalCompressedSize };
+  // Use items sum if total-byte-weight not available
+  if (totalTransferSize === 0) {
+    totalTransferSize = itemsTransferSize;
+  }
+
+  return { requestCount, totalTransferSize };
+}
+
+/**
+ * Extract detailed information for each HTTP request
+ */
+function extractRequestDetails(lhr) {
+  const networkRequestsAudit = lhr.audits?.['network-requests'];
+  if (!networkRequestsAudit?.details?.items) {
+    return [];
+  }
+
+  return networkRequestsAudit.details.items
+    .filter((item) => {
+      const url = item.url || '';
+      // Skip data: and blob: URLs
+      return !url.startsWith('data:') && !url.startsWith('blob:');
+    })
+    .map((item) => {
+      const url = item.url || '';
+      let domain = '';
+      try {
+        domain = new URL(url).hostname;
+      } catch {
+        // Invalid URL
+      }
+
+      const transferSize = item.transferSize || 0;
+      const resourceSize = item.resourceSize || 0;
+      const startTime = item.networkRequestTime || item.rendererStartTime || 0;
+      const endTime = item.networkEndTime || startTime;
+
+      return {
+        url,
+        domain,
+        protocol: item.protocol || 'unknown',
+        statusCode: item.statusCode || 0,
+        mimeType: item.mimeType || 'unknown',
+        resourceType: item.resourceType || 'Other',
+        transferSize,
+        resourceSize,
+        priority: item.priority || 'Medium',
+        startTime: Math.round(startTime * 100) / 100,
+        endTime: Math.round(endTime * 100) / 100,
+        duration: Math.round((endTime - startTime) * 100) / 100,
+        fromCache: transferSize === 0 && resourceSize > 0,
+      };
+    });
 }
 
 /**
@@ -276,13 +357,13 @@ function extractPerformanceMetrics(lhr) {
   const perfCategory = lhr.categories?.['performance'];
 
   return {
-    performanceScore: Math.round((perfCategory?.score || 0) * 100),
-    firstContentfulPaint: extractNumericValue(audits['first-contentful-paint'], 0),
-    largestContentfulPaint: extractNumericValue(audits['largest-contentful-paint'], 0),
-    totalBlockingTime: extractNumericValue(audits['total-blocking-time'], 0),
-    cumulativeLayoutShift: extractNumericValue(audits['cumulative-layout-shift'], 0),
-    speedIndex: extractNumericValue(audits['speed-index'], 0),
-    timeToInteractive: extractNumericValue(audits['interactive'], 0),
+    performance: Math.round((perfCategory?.score || 0) * 100),
+    fcp: extractNumericValue(audits['first-contentful-paint'], 0),
+    lcp: extractNumericValue(audits['largest-contentful-paint'], 0),
+    tbt: extractNumericValue(audits['total-blocking-time'], 0),
+    cls: extractNumericValue(audits['cumulative-layout-shift'], 0),
+    si: extractNumericValue(audits['speed-index'], 0),
+    tti: extractNumericValue(audits['interactive'], 0),
   };
 }
 
@@ -308,7 +389,7 @@ function extractAccessibilityMetrics(lhr) {
   }
 
   return {
-    accessibilityScore: Math.round((a11yCategory?.score || 0) * 100),
+    accessibility: Math.round((a11yCategory?.score || 0) * 100),
     issues: issues.slice(0, 10),
   };
 }
@@ -325,22 +406,15 @@ function mapA11yWeight(weight) {
 }
 
 /**
- * Extract Best Practices metrics
+ * Extract Best Practices and SEO scores
  */
-function extractBestPracticesMetrics(lhr) {
+function extractOtherScores(lhr) {
   const bpCategory = lhr.categories?.['best-practices'];
-  return {
-    bestPracticesScore: Math.round((bpCategory?.score || 0) * 100),
-  };
-}
-
-/**
- * Extract SEO metrics
- */
-function extractSeoMetrics(lhr) {
   const seoCategory = lhr.categories?.['seo'];
+
   return {
-    seoScore: Math.round((seoCategory?.score || 0) * 100),
+    bestPractices: Math.round((bpCategory?.score || 0) * 100),
+    seo: Math.round((seoCategory?.score || 0) * 100),
   };
 }
 
@@ -370,19 +444,19 @@ function extractNumericValue(audit, defaultValue) {
 
 /**
  * Run Lighthouse analysis using Flow API (matching EcoindexApp methodology)
+ * Returns raw metrics - EcoIndex calculation is done in Rust
  */
 async function runAnalysis(url, chromePath, includeHtml = false) {
-  let browser = null;
-
   try {
     // Launch browser using puppeteer-core directly
-    browser = await puppeteer.launch({
+    // Store in global variable for cleanup on signals
+    activeBrowser = await puppeteer.launch({
       executablePath: chromePath,
       headless: 'new',
       args: CHROME_FLAGS,
     });
 
-    const page = await browser.newPage();
+    const page = await activeBrowser.newPage();
     await page.setViewport({ width: 1920, height: 1080 });
 
     // WARM NAVIGATION PATTERN (matching EcoindexApp)
@@ -423,46 +497,46 @@ async function runAnalysis(url, chromePath, includeHtml = false) {
     // Get the navigation step result
     const lhr = flowResult.steps[0].lhr;
 
-    // Extract network metrics
-    const { requestCount, totalCompressedSize } = extractNetworkStats(lhr);
-    const sizeKb = totalCompressedSize / 1000; // Official uses /1000 (not /1024)
-
-    // Calculate EcoIndex
-    const { score, grade } = calculateEcoIndex(domElements, requestCount, sizeKb);
-
-    // Calculate environmental impacts (official formula: 50 - score)
-    const ghg = 2 + (2 * (50 - score)) / 100;
-    const water = 3 + (3 * (50 - score)) / 100;
+    // Extract raw network metrics
+    const { requestCount, totalTransferSize } = extractNetworkStats(lhr);
 
     // Extract resource breakdown
     const resourceBreakdown = extractResourceBreakdown(lhr);
 
-    // Build result
+    // Extract detailed request information
+    const requests = extractRequestDetails(lhr);
+
+    // Extract Lighthouse scores
+    const perfMetrics = extractPerformanceMetrics(lhr);
+    const a11yMetrics = extractAccessibilityMetrics(lhr);
+    const otherScores = extractOtherScores(lhr);
+
+    // Build result with raw metrics (no EcoIndex calculation)
     const analysisResult = {
       url: lhr.finalDisplayedUrl || url,
-      timestamp: new Date().toISOString(),
-      ecoindex: {
-        score: Math.round(score * 100) / 100,
-        grade,
-        ghg: Math.round(ghg * 100) / 100,
-        water: Math.round(water * 100) / 100,
+      rawMetrics: {
         domElements: Math.round(domElements),
         requests: Math.round(requestCount),
-        sizeKb: Math.round(sizeKb * 100) / 100,
-        resourceBreakdown,
+        totalTransferSize: Math.round(totalTransferSize),
       },
-      performance: extractPerformanceMetrics(lhr),
-      accessibility: extractAccessibilityMetrics(lhr),
-      bestPractices: extractBestPracticesMetrics(lhr),
-      seo: extractSeoMetrics(lhr),
+      resourceBreakdown,
+      requests,
+      lighthouse: {
+        ...perfMetrics,
+        accessibility: a11yMetrics.accessibility,
+        ...otherScores,
+      },
+      accessibilityIssues: a11yMetrics.issues,
     };
 
-    // Add HTML report if requested
+    // Write HTML report to temp file if requested
     if (includeHtml) {
       try {
         const htmlReport = await flow.generateReport();
         if (htmlReport) {
-          analysisResult.rawLighthouseReport = htmlReport;
+          const reportPath = join(tmpdir(), `lighthouse-report-${Date.now()}.html`);
+          writeFileSync(reportPath, htmlReport, 'utf-8');
+          analysisResult.htmlReportPath = reportPath;
         }
       } catch {
         // Silently ignore HTML report generation errors
@@ -493,8 +567,9 @@ async function runAnalysis(url, chromePath, includeHtml = false) {
       details,
     };
   } finally {
-    if (browser) {
-      await browser.close();
+    if (activeBrowser) {
+      await activeBrowser.close();
+      activeBrowser = null;
     }
   }
 }

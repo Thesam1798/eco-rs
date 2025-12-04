@@ -13,6 +13,7 @@ pub fn build() -> tauri::Result<App> {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .manage(crate::sidecar::AnalysisState::default())
         .setup(|app| {
             // Log application info in development
             #[cfg(debug_assertions)]
