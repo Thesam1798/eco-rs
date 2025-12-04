@@ -2,6 +2,19 @@ import { Component, input, computed, ChangeDetectionStrategy } from '@angular/co
 import type { CacheItem } from '../../../../core/models';
 import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
 
+interface CacheGroup {
+  label: string;
+  count: number;
+  totalBytes: number;
+  wastedBytes: number;
+  color: string;
+  percentage: number;
+}
+
+const MS_HOUR = 3600000;
+const MS_DAY = 86400000;
+const MS_WEEK = 604800000;
+
 @Component({
   selector: 'app-cache-analysis',
   standalone: true,
@@ -24,41 +37,31 @@ import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
           </p>
         </div>
 
-        <div class="overflow-x-auto max-h-[300px] overflow-y-auto">
-          <table class="w-full text-sm">
-            <thead class="sticky top-0 bg-white">
-              <tr class="border-b border-gray-200">
-                <th class="text-left py-2 px-3 font-medium text-gray-600">Ressource</th>
-                <th class="text-right py-2 px-3 font-medium text-gray-600">TTL</th>
-                <th class="text-right py-2 px-3 font-medium text-gray-600">Taille</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (item of cacheItems(); track item.url) {
-                <tr class="border-b border-gray-100 hover:bg-gray-50">
-                  <td class="py-2 px-3">
-                    <div class="flex items-center gap-2">
-                      <span [class]="getCacheBadgeClass(item.cacheLifetimeMs)">
-                        {{ getCacheBadgeText(item.cacheLifetimeMs) }}
-                      </span>
-                      <span
-                        class="font-mono text-xs text-gray-700 truncate max-w-[180px]"
-                        [title]="item.url"
-                      >
-                        {{ getFilename(item.url) }}
-                      </span>
-                    </div>
-                  </td>
-                  <td class="py-2 px-3 text-right text-gray-600 font-mono text-xs">
-                    {{ formatCacheTtl(item.cacheLifetimeMs) }}
-                  </td>
-                  <td class="py-2 px-3 text-right text-gray-600">
-                    {{ item.totalBytes | formatBytes }}
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+        <!-- Grouped by TTL -->
+        <div class="space-y-3">
+          @for (group of cacheGroups(); track group.label) {
+            <div class="flex items-center gap-3">
+              <span class="w-20 text-sm font-medium text-gray-700">{{ group.label }}</span>
+              <div class="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  class="h-full rounded-full transition-all duration-300"
+                  [style.width.%]="group.percentage"
+                  [style.background-color]="group.color"
+                ></div>
+              </div>
+              <span class="w-16 text-right text-sm font-medium text-gray-700">
+                {{ group.count }}
+              </span>
+            </div>
+          }
+        </div>
+
+        <!-- Total -->
+        <div class="mt-4 pt-4 border-t border-gray-100">
+          <p class="text-sm text-gray-500">
+            Total :
+            <span class="font-medium text-gray-700">{{ cacheItems().length }}</span> ressources
+          </p>
         </div>
       }
     </div>
@@ -69,42 +72,83 @@ export class CacheAnalysisComponent {
 
   readonly cacheItems = computed(() =>
     this.cacheAnalysis()
-      .filter((item) => item.cacheLifetimeMs < 604800000) // Less than 7 days
+      .filter((item) => item.cacheLifetimeMs < MS_WEEK)
       .sort((a, b) => a.cacheLifetimeMs - b.cacheLifetimeMs)
   );
+
+  readonly cacheGroups = computed((): CacheGroup[] => {
+    const items = this.cacheItems();
+    const total = items.length;
+    if (total === 0) return [];
+
+    const groups = {
+      none: { count: 0, totalBytes: 0, wastedBytes: 0 },
+      hour: { count: 0, totalBytes: 0, wastedBytes: 0 },
+      day: { count: 0, totalBytes: 0, wastedBytes: 0 },
+      week: { count: 0, totalBytes: 0, wastedBytes: 0 },
+    };
+
+    for (const item of items) {
+      const ms = item.cacheLifetimeMs;
+      let group: keyof typeof groups;
+
+      if (ms === 0) {
+        group = 'none';
+      } else if (ms < MS_HOUR) {
+        group = 'hour';
+      } else if (ms < MS_DAY) {
+        group = 'day';
+      } else {
+        group = 'week';
+      }
+
+      groups[group].count++;
+      groups[group].totalBytes += item.totalBytes;
+      groups[group].wastedBytes += item.wastedBytes;
+    }
+
+    const result: CacheGroup[] = [];
+
+    if (groups.none.count > 0) {
+      result.push({
+        label: 'Aucun',
+        ...groups.none,
+        color: '#ef4444', // red
+        percentage: (groups.none.count / total) * 100,
+      });
+    }
+
+    if (groups.hour.count > 0) {
+      result.push({
+        label: '< 1 heure',
+        ...groups.hour,
+        color: '#f59e0b', // amber
+        percentage: (groups.hour.count / total) * 100,
+      });
+    }
+
+    if (groups.day.count > 0) {
+      result.push({
+        label: '< 1 jour',
+        ...groups.day,
+        color: '#eab308', // yellow
+        percentage: (groups.day.count / total) * 100,
+      });
+    }
+
+    if (groups.week.count > 0) {
+      result.push({
+        label: '< 7 jours',
+        ...groups.week,
+        color: '#84cc16', // lime
+        percentage: (groups.week.count / total) * 100,
+      });
+    }
+
+    return result;
+  });
 
   readonly totalWastedBytes = computed(() =>
     this.cacheItems().reduce((sum, item) => sum + item.wastedBytes, 0)
   );
-
-  formatCacheTtl(ms: number): string {
-    if (ms === 0) return 'Aucun';
-    const seconds = ms / 1000;
-    if (seconds < 60) return `${Math.round(seconds)}s`;
-    if (seconds < 3600) return `${Math.round(seconds / 60)}min`;
-    if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
-    return `${Math.round(seconds / 86400)}j`;
-  }
-
-  getCacheBadgeClass(ms: number): string {
-    const base = 'px-1.5 py-0.5 rounded text-xs font-medium';
-    if (ms === 0) return `${base} bg-red-100 text-red-700`;
-    if (ms < 86400000) return `${base} bg-amber-100 text-amber-700`; // < 1 day
-    return `${base} bg-green-100 text-green-700`;
-  }
-
-  getCacheBadgeText(ms: number): string {
-    if (ms === 0) return 'Aucun';
-    if (ms < 86400000) return 'Court';
-    return 'OK';
-  }
-
-  getFilename(url: string): string {
-    try {
-      const pathname = new URL(url).pathname;
-      return pathname.split('/').pop() || pathname;
-    } catch {
-      return url;
-    }
-  }
 }
