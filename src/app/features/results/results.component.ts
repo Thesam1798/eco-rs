@@ -4,12 +4,23 @@ import { openPath } from '@tauri-apps/plugin-opener';
 import { AnalyzerService } from '../../core/services';
 import { EcoindexCardComponent } from './components/ecoindex-card/ecoindex-card.component';
 import { LighthouseScoresComponent } from './components/lighthouse-scores/lighthouse-scores.component';
+import { DomainStatsComponent } from './components/domain-stats/domain-stats.component';
+import { CacheAnalysisComponent } from './components/cache-analysis/cache-analysis.component';
+import { ProtocolStatsComponent } from './components/protocol-stats/protocol-stats.component';
+import { DuplicatesComponent } from './components/duplicates/duplicates.component';
 
 @Component({
   selector: 'app-results',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [EcoindexCardComponent, LighthouseScoresComponent],
+  imports: [
+    EcoindexCardComponent,
+    LighthouseScoresComponent,
+    DomainStatsComponent,
+    CacheAnalysisComponent,
+    ProtocolStatsComponent,
+    DuplicatesComponent,
+  ],
   template: `
     <div class="min-h-screen bg-gray-50 py-12 px-4">
       <div class="max-w-4xl mx-auto">
@@ -35,6 +46,21 @@ import { LighthouseScoresComponent } from './components/lighthouse-scores/lighth
               <h2 class="text-xl font-semibold text-gray-800 mb-4">Scores Lighthouse</h2>
               <app-lighthouse-scores [result]="result.data" />
             </div>
+
+            <!-- Request Analysis Section -->
+            @if (result.data.requests && result.data.requests.length > 0) {
+              <div class="mt-8">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Analyse des requetes HTTP</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <app-domain-stats [requests]="result.data.requests" />
+                  <app-protocol-stats [requests]="result.data.requests" />
+                </div>
+                <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <app-cache-analysis [cacheAnalysis]="result.data.cacheAnalysis || []" />
+                  <app-duplicates [requests]="result.data.requests" />
+                </div>
+              </div>
+            }
 
             <!-- Open HTML Report -->
             @if (result.data.htmlReportPath) {
