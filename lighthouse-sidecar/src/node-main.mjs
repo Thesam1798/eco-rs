@@ -259,11 +259,23 @@ function extractNetworkStats(lhr) {
 
 /**
  * Extract detailed information for each HTTP request
+ * Includes cache TTL from uses-long-cache-ttl audit
  */
 function extractRequestDetails(lhr) {
   const networkRequestsAudit = lhr.audits?.['network-requests'];
   if (!networkRequestsAudit?.details?.items) {
     return [];
+  }
+
+  // Build a map of cache TTLs from uses-long-cache-ttl audit
+  const cacheTtlMap = new Map();
+  const cacheAudit = lhr.audits?.['uses-long-cache-ttl'];
+  if (cacheAudit?.details?.items) {
+    for (const item of cacheAudit.details.items) {
+      if (item.url) {
+        cacheTtlMap.set(item.url, item.cacheLifetimeMs || 0);
+      }
+    }
   }
 
   return networkRequestsAudit.details.items
@@ -286,6 +298,10 @@ function extractRequestDetails(lhr) {
       const startTime = item.networkRequestTime || item.rendererStartTime || 0;
       const endTime = item.networkEndTime || startTime;
 
+      // Get cache TTL: if not in audit, assume good cache (1 year)
+      // Resources not in audit have cache >= 1 year (good)
+      const cacheLifetimeMs = cacheTtlMap.has(url) ? cacheTtlMap.get(url) : 31536000000;
+
       return {
         url,
         domain,
@@ -300,6 +316,7 @@ function extractRequestDetails(lhr) {
         endTime: Math.round(endTime * 100) / 100,
         duration: Math.round((endTime - startTime) * 100) / 100,
         fromCache: transferSize === 0 && resourceSize > 0,
+        cacheLifetimeMs,
       };
     });
 }
