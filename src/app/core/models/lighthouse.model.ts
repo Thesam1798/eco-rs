@@ -108,6 +108,117 @@ export interface RequestDetail {
   cacheLifetimeMs: number;
 }
 
+// ============================================================================
+// Request Analytics (pre-computed by backend)
+// ============================================================================
+
+/**
+ * Statistics for a single domain
+ */
+export interface DomainStat {
+  domain: string;
+  requestCount: number;
+  totalTransferSize: number;
+  percentage: number;
+  color: string;
+}
+
+/**
+ * Aggregated domain analytics
+ */
+export interface DomainAnalytics {
+  domains: DomainStat[];
+  totalRequests: number;
+  totalSize: number;
+}
+
+/**
+ * Statistics for a single protocol
+ */
+export interface ProtocolStat {
+  protocol: string;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
+/**
+ * Aggregated protocol analytics
+ */
+export interface ProtocolAnalytics {
+  protocols: ProtocolStat[];
+  totalRequests: number;
+}
+
+/**
+ * Cache TTL group
+ */
+export interface CacheGroup {
+  label: string;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
+/**
+ * Resource with problematic cache TTL
+ */
+export interface ProblematicResource {
+  url: string;
+  domain: string;
+  filename: string;
+  cacheLifetimeMs: number;
+  cacheTtlLabel: string;
+  badgeClass: string;
+  badgeText: string;
+  resourceSize: number;
+}
+
+/**
+ * Aggregated cache analytics
+ */
+export interface CacheAnalytics {
+  groups: CacheGroup[];
+  problematicResources: ProblematicResource[];
+  totalResources: number;
+  problematicCount: number;
+}
+
+/**
+ * Group of duplicate resources
+ */
+export interface DuplicateGroup {
+  filename: string;
+  resourceSize: number;
+  resourceType: string;
+  urls: string[];
+  domains: string[];
+  wastedBytes: number;
+}
+
+/**
+ * Aggregated duplicate analytics
+ */
+export interface DuplicateAnalytics {
+  duplicates: DuplicateGroup[];
+  totalWastedBytes: number;
+  duplicateCount: number;
+}
+
+/**
+ * All pre-computed request analytics
+ */
+export interface RequestAnalytics {
+  domainStats: DomainAnalytics;
+  protocolStats: ProtocolAnalytics;
+  cacheStats: CacheAnalytics;
+  duplicateStats: DuplicateAnalytics;
+}
+
+// ============================================================================
+// Main Result Types
+// ============================================================================
+
 /**
  * Résultat Lighthouse complet
  */
@@ -125,4 +236,6 @@ export interface LighthouseResult {
   cacheAnalysis?: CacheItem[];
   /** Path to the HTML report file (if requested) */
   htmlReportPath?: string;
+  /** Pre-computed request analytics */
+  analytics?: RequestAnalytics;
 }
