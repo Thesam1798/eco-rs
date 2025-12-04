@@ -8,6 +8,7 @@ import { DomainStatsComponent } from './components/domain-stats/domain-stats.com
 import { CacheAnalysisComponent } from './components/cache-analysis/cache-analysis.component';
 import { ProtocolStatsComponent } from './components/protocol-stats/protocol-stats.component';
 import { DuplicatesComponent } from './components/duplicates/duplicates.component';
+import { CacheIssuesComponent } from './components/cache-issues/cache-issues.component';
 
 @Component({
   selector: 'app-results',
@@ -20,6 +21,7 @@ import { DuplicatesComponent } from './components/duplicates/duplicates.componen
     CacheAnalysisComponent,
     ProtocolStatsComponent,
     DuplicatesComponent,
+    CacheIssuesComponent,
   ],
   template: `
     <div class="min-h-screen bg-gray-50 py-12 px-4">
@@ -57,6 +59,9 @@ import { DuplicatesComponent } from './components/duplicates/duplicates.componen
                 </div>
                 <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                   <app-cache-analysis [requests]="result.data.requests" />
+                  <app-cache-issues [requests]="result.data.requests" />
+                </div>
+                <div class="mt-6">
                   <app-duplicates [requests]="result.data.requests" />
                 </div>
               </div>

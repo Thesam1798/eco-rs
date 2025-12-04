@@ -1,0 +1,115 @@
+import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
+import type { RequestDetail } from '../../../../core/models';
+import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
+
+const MS_HOUR = 3600000;
+const MS_DAY = 86400000;
+const MS_WEEK = 604800000;
+
+@Component({
+  selector: 'app-cache-issues',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [FormatBytesPipe],
+  template: `
+    <div class="bg-white rounded-2xl shadow-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-800 mb-4">Ressources problematiques</h3>
+
+      @if (problematicResources().length === 0) {
+        <p class="text-green-600 text-sm">Toutes les ressources ont une bonne politique de cache</p>
+      } @else {
+        <div class="mb-3 text-sm text-amber-700">
+          <span class="font-semibold">{{ problematicResources().length }}</span> ressource(s) avec
+          cache &lt; 7 jours
+        </div>
+
+        <div class="overflow-x-auto max-h-[250px] overflow-y-auto">
+          <table class="w-full text-sm">
+            <thead class="sticky top-0 bg-white">
+              <tr class="border-b border-gray-200">
+                <th class="text-left py-2 px-2 font-medium text-gray-600">Fichier</th>
+                <th class="text-left py-2 px-2 font-medium text-gray-600">Domaine</th>
+                <th class="text-right py-2 px-2 font-medium text-gray-600">TTL</th>
+                <th class="text-right py-2 px-2 font-medium text-gray-600">Taille</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of problematicResources(); track item.url) {
+                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                  <td class="py-2 px-2">
+                    <div class="flex items-center gap-1.5">
+                      <span [class]="getCacheBadgeClass(item.cacheLifetimeMs)">
+                        {{ getCacheBadgeText(item.cacheLifetimeMs) }}
+                      </span>
+                      <span
+                        class="font-mono text-xs text-gray-700 truncate max-w-[120px]"
+                        [title]="item.url"
+                      >
+                        {{ getFilename(item.url) }}
+                      </span>
+                    </div>
+                  </td>
+                  <td
+                    class="py-2 px-2 text-xs text-gray-500 truncate max-w-[100px]"
+                    [title]="item.domain"
+                  >
+                    {{ item.domain }}
+                  </td>
+                  <td
+                    class="py-2 px-2 text-right text-gray-600 font-mono text-xs whitespace-nowrap"
+                  >
+                    {{ formatCacheTtl(item.cacheLifetimeMs) }}
+                  </td>
+                  <td class="py-2 px-2 text-right text-gray-600 text-xs whitespace-nowrap">
+                    {{ item.resourceSize | formatBytes }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  `,
+})
+export class CacheIssuesComponent {
+  readonly requests = input.required<RequestDetail[]>();
+
+  readonly problematicResources = computed(() =>
+    this.requests()
+      .filter((item) => item.cacheLifetimeMs < MS_WEEK)
+      .sort((a, b) => a.cacheLifetimeMs - b.cacheLifetimeMs)
+  );
+
+  formatCacheTtl(ms: number): string {
+    if (ms === 0) return 'Aucun';
+    const seconds = ms / 1000;
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    if (seconds < 3600) return `${Math.round(seconds / 60)}min`;
+    if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
+    return `${Math.round(seconds / 86400)}j`;
+  }
+
+  getCacheBadgeClass(ms: number): string {
+    const base = 'px-1 py-0.5 rounded text-xs font-medium';
+    if (ms === 0) return `${base} bg-red-100 text-red-700`;
+    if (ms < MS_DAY) return `${base} bg-amber-100 text-amber-700`;
+    return `${base} bg-yellow-100 text-yellow-700`;
+  }
+
+  getCacheBadgeText(ms: number): string {
+    if (ms === 0) return '!';
+    if (ms < MS_HOUR) return '<1h';
+    if (ms < MS_DAY) return '<1j';
+    return '<7j';
+  }
+
+  getFilename(url: string): string {
+    try {
+      const pathname = new URL(url).pathname;
+      return pathname.split('/').pop() || pathname;
+    } catch {
+      return url;
+    }
+  }
+}
