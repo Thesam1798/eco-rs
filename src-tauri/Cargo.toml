@@ -32,6 +32,9 @@ futures = "0.3"
 # Date/time
 chrono = { version = "0.4", features = ["serde"] }
 
+# URL parsing
+url = "2"
+
 # Chrome DevTools Protocol
 chromiumoxide = { version = "0.7", features = ["tokio-runtime"], default-features = false }
 

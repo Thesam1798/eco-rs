@@ -3,6 +3,7 @@
 //! This library provides the core functionality for the `EcoIndex` Analyzer application,
 //! including web page analysis, `EcoIndex` calculation, and Lighthouse integration.
 
+pub mod analytics;
 mod app;
 pub mod browser;
 pub mod calculator;
