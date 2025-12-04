@@ -12,6 +12,7 @@ use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 use tokio::sync::Mutex;
 
+use crate::analytics::RequestAnalytics;
 use crate::calculator::EcoIndexCalculator;
 use crate::domain::PageMetrics;
 use crate::errors::SidecarError;
@@ -254,6 +255,9 @@ pub struct LighthouseResult {
     /// Path to HTML Lighthouse report (if requested).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html_report_path: Option<String>,
+    /// Pre-computed request analytics.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub analytics: Option<RequestAnalytics>,
 }
 
 /// Erreur retournée par le sidecar.
@@ -422,9 +426,14 @@ pub async fn run_lighthouse_analysis(
                 seo: SeoMetrics {
                     seo_score: raw.lighthouse.seo,
                 },
-                requests: raw.requests,
+                requests: raw.requests.clone(),
                 cache_analysis: raw.cache_analysis,
                 html_report_path: raw.html_report_path,
+                analytics: if raw.requests.is_empty() {
+                    None
+                } else {
+                    Some(RequestAnalytics::compute(&raw.requests))
+                },
             })
         },
         SidecarOutput::Error(error_response) => Err(SidecarError::AnalysisFailed {
