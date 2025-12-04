@@ -52,8 +52,8 @@ export class ProtocolStatsComponent {
   readonly requests = input.required<RequestDetail[]>();
 
   private readonly protocolColors: Record<string, string> = {
-    H3: '#10b981', // green-500
-    H2: '#3b82f6', // blue-500
+    'HTTP/3': '#10b981', // green-500
+    'HTTP/2': '#3b82f6', // blue-500
     'HTTP/1.1': '#f59e0b', // amber-500
     Autre: '#6b7280', // gray-500
   };
@@ -70,7 +70,7 @@ export class ProtocolStatsComponent {
       counts.set(proto, (counts.get(proto) || 0) + 1);
     }
 
-    const order = ['H3', 'H2', 'HTTP/1.1', 'Autre'];
+    const order = ['HTTP/3', 'HTTP/2', 'HTTP/1.1', 'Autre'];
     return order
       .filter((proto) => counts.has(proto))
       .map((proto) => {
@@ -88,8 +88,8 @@ export class ProtocolStatsComponent {
 
   private normalizeProtocol(protocol: string): string {
     const p = protocol.toLowerCase();
-    if (p.startsWith('h3') || p.includes('quic')) return 'H3';
-    if (p.startsWith('h2') || p === 'http/2') return 'H2';
+    if (p.startsWith('h3') || p.includes('quic')) return 'HTTP/3';
+    if (p.startsWith('h2') || p === 'http/2') return 'HTTP/2';
     if (p.startsWith('http/1') || p === 'http/1.1' || p === 'http/1.0') return 'HTTP/1.1';
     return 'Autre';
   }
