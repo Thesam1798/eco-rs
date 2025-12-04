@@ -56,7 +56,7 @@ import { DuplicatesComponent } from './components/duplicates/duplicates.componen
                   <app-protocol-stats [requests]="result.data.requests" />
                 </div>
                 <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <app-cache-analysis [cacheAnalysis]="result.data.cacheAnalysis || []" />
+                  <app-cache-analysis [requests]="result.data.requests" />
                   <app-duplicates [requests]="result.data.requests" />
                 </div>
               </div>
