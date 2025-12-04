@@ -1,5 +1,5 @@
 import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
-import type { RequestDetail } from '../../../../core/models';
+import type { RequestDetail, CacheAnalytics, ProblematicResource } from '../../../../core/models';
 import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
 
 const MS_HOUR = 3600000;
@@ -38,14 +38,14 @@ const MS_WEEK = 604800000;
                 <tr class="border-b border-gray-100 hover:bg-gray-50">
                   <td class="py-2 px-2">
                     <div class="flex items-center gap-1.5">
-                      <span [class]="getCacheBadgeClass(item.cacheLifetimeMs)">
-                        {{ getCacheBadgeText(item.cacheLifetimeMs) }}
+                      <span [class]="getBadgeClass(item)">
+                        {{ getBadgeText(item) }}
                       </span>
                       <span
                         class="font-mono text-xs text-gray-700 truncate max-w-[120px]"
                         [title]="item.url"
                       >
-                        {{ getFilename(item.url) }}
+                        {{ getFilename(item) }}
                       </span>
                     </div>
                   </td>
@@ -58,10 +58,10 @@ const MS_WEEK = 604800000;
                   <td
                     class="py-2 px-2 text-right text-gray-600 font-mono text-xs whitespace-nowrap"
                   >
-                    {{ formatCacheTtl(item.cacheLifetimeMs) }}
+                    {{ getTtlLabel(item) }}
                   </td>
                   <td class="py-2 px-2 text-right text-gray-600 text-xs whitespace-nowrap">
-                    {{ item.resourceSize | formatBytes }}
+                    {{ getResourceSize(item) | formatBytes }}
                   </td>
                 </tr>
               }
@@ -73,15 +73,70 @@ const MS_WEEK = 604800000;
   `,
 })
 export class CacheIssuesComponent {
-  readonly requests = input.required<RequestDetail[]>();
+  /** Pre-computed analytics from backend (preferred) */
+  readonly analytics = input<CacheAnalytics>();
+  /** Raw requests for fallback computation */
+  readonly requests = input<RequestDetail[]>();
 
-  readonly problematicResources = computed(() =>
-    this.requests()
+  readonly problematicResources = computed((): ProblematicResource[] => {
+    // Prefer pre-computed analytics
+    const analytics = this.analytics();
+    if (analytics) {
+      return analytics.problematicResources;
+    }
+
+    // Fallback: compute from raw requests
+    const requests = this.requests();
+    if (!requests || requests.length === 0) return [];
+
+    return requests
       .filter((item) => item.cacheLifetimeMs < MS_WEEK)
       .sort((a, b) => a.cacheLifetimeMs - b.cacheLifetimeMs)
-  );
+      .map((item) => ({
+        url: item.url,
+        domain: item.domain,
+        filename: this.extractFilename(item.url),
+        cacheLifetimeMs: item.cacheLifetimeMs,
+        cacheTtlLabel: this.formatCacheTtl(item.cacheLifetimeMs),
+        badgeClass: this.computeBadgeClass(item.cacheLifetimeMs),
+        badgeText: this.computeBadgeText(item.cacheLifetimeMs),
+        resourceSize: item.resourceSize,
+      }));
+  });
 
-  formatCacheTtl(ms: number): string {
+  // Helper methods that work with both data sources
+  getFilename(item: ProblematicResource): string {
+    return item.filename;
+  }
+
+  getBadgeClass(item: ProblematicResource): string {
+    const base = 'px-1 py-0.5 rounded text-xs font-medium';
+    return `${base} ${item.badgeClass}`;
+  }
+
+  getBadgeText(item: ProblematicResource): string {
+    return item.badgeText;
+  }
+
+  getTtlLabel(item: ProblematicResource): string {
+    return item.cacheTtlLabel;
+  }
+
+  getResourceSize(item: ProblematicResource): number {
+    return item.resourceSize;
+  }
+
+  // Fallback computation methods
+  private extractFilename(url: string): string {
+    try {
+      const pathname = new URL(url).pathname;
+      return pathname.split('/').pop() || pathname;
+    } catch {
+      return url;
+    }
+  }
+
+  private formatCacheTtl(ms: number): string {
     if (ms === 0) return 'Aucun';
     const seconds = ms / 1000;
     if (seconds < 60) return `${Math.round(seconds)}s`;
@@ -90,26 +145,16 @@ export class CacheIssuesComponent {
     return `${Math.round(seconds / 86400)}j`;
   }
 
-  getCacheBadgeClass(ms: number): string {
-    const base = 'px-1 py-0.5 rounded text-xs font-medium';
-    if (ms === 0) return `${base} bg-red-100 text-red-700`;
-    if (ms < MS_DAY) return `${base} bg-amber-100 text-amber-700`;
-    return `${base} bg-yellow-100 text-yellow-700`;
+  private computeBadgeClass(ms: number): string {
+    if (ms === 0) return 'bg-red-100 text-red-700';
+    if (ms < MS_DAY) return 'bg-amber-100 text-amber-700';
+    return 'bg-yellow-100 text-yellow-700';
   }
 
-  getCacheBadgeText(ms: number): string {
+  private computeBadgeText(ms: number): string {
     if (ms === 0) return '!';
     if (ms < MS_HOUR) return '<1h';
     if (ms < MS_DAY) return '<1j';
     return '<7j';
-  }
-
-  getFilename(url: string): string {
-    try {
-      const pathname = new URL(url).pathname;
-      return pathname.split('/').pop() || pathname;
-    } catch {
-      return url;
-    }
   }
 }
