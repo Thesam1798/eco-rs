@@ -1,12 +1,5 @@
 import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
-import type { RequestDetail } from '../../../../core/models';
-
-interface CacheGroup {
-  label: string;
-  count: number;
-  color: string;
-  percentage: number;
-}
+import type { RequestDetail, CacheAnalytics, CacheGroup } from '../../../../core/models';
 
 const MS_HOUR = 3600000;
 const MS_DAY = 86400000;
@@ -20,7 +13,7 @@ const MS_WEEK = 604800000;
     <div class="bg-white rounded-2xl shadow-lg p-6">
       <h3 class="text-lg font-semibold text-gray-800 mb-4">Analyse du cache</h3>
 
-      @if (requests().length === 0) {
+      @if (totalResources() === 0) {
         <p class="text-gray-500 text-sm">Aucune ressource a analyser</p>
       } @else {
         <!-- Grouped by TTL -->
@@ -46,7 +39,7 @@ const MS_WEEK = 604800000;
         <div class="mt-4 pt-4 border-t border-gray-100">
           <p class="text-sm text-gray-500">
             Total :
-            <span class="font-medium text-gray-700">{{ requests().length }}</span> ressources
+            <span class="font-medium text-gray-700">{{ totalResources() }}</span> ressources
           </p>
         </div>
       }
@@ -54,13 +47,23 @@ const MS_WEEK = 604800000;
   `,
 })
 export class CacheAnalysisComponent {
-  readonly requests = input.required<RequestDetail[]>();
+  /** Pre-computed analytics from backend (preferred) */
+  readonly analytics = input<CacheAnalytics>();
+  /** Raw requests for fallback computation */
+  readonly requests = input<RequestDetail[]>();
 
   readonly cacheGroups = computed((): CacheGroup[] => {
-    const items = this.requests();
-    const total = items.length;
-    if (total === 0) return [];
+    // Prefer pre-computed analytics
+    const analytics = this.analytics();
+    if (analytics) {
+      return analytics.groups;
+    }
 
+    // Fallback: compute from raw requests
+    const items = this.requests();
+    if (!items || items.length === 0) return [];
+
+    const total = items.length;
     const groups = {
       none: 0,
       hour: 0,
@@ -71,7 +74,6 @@ export class CacheAnalysisComponent {
 
     for (const item of items) {
       const ms = item.cacheLifetimeMs;
-
       if (ms === 0) {
         groups.none++;
       } else if (ms < MS_HOUR) {
@@ -86,52 +88,53 @@ export class CacheAnalysisComponent {
     }
 
     const result: CacheGroup[] = [];
-
     if (groups.none > 0) {
       result.push({
         label: 'Aucun',
         count: groups.none,
-        color: '#ef4444', // red
+        color: '#ef4444',
         percentage: (groups.none / total) * 100,
       });
     }
-
     if (groups.hour > 0) {
       result.push({
         label: '< 1 heure',
         count: groups.hour,
-        color: '#f59e0b', // amber
+        color: '#f59e0b',
         percentage: (groups.hour / total) * 100,
       });
     }
-
     if (groups.day > 0) {
       result.push({
         label: '< 1 jour',
         count: groups.day,
-        color: '#eab308', // yellow
+        color: '#eab308',
         percentage: (groups.day / total) * 100,
       });
     }
-
     if (groups.week > 0) {
       result.push({
         label: '< 7 jours',
         count: groups.week,
-        color: '#84cc16', // lime
+        color: '#84cc16',
         percentage: (groups.week / total) * 100,
       });
     }
-
     if (groups.good > 0) {
       result.push({
         label: '>= 7 jours',
         count: groups.good,
-        color: '#10b981', // green
+        color: '#10b981',
         percentage: (groups.good / total) * 100,
       });
     }
 
     return result;
+  });
+
+  readonly totalResources = computed(() => {
+    const analytics = this.analytics();
+    if (analytics) return analytics.totalResources;
+    return this.requests()?.length ?? 0;
   });
 }

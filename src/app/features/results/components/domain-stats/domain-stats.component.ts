@@ -1,15 +1,7 @@
 import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
-import type { RequestDetail } from '../../../../core/models';
+import type { RequestDetail, DomainAnalytics, DomainStat } from '../../../../core/models';
 import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
 import { DecimalPipe } from '@angular/common';
-
-interface DomainStat {
-  domain: string;
-  requestCount: number;
-  totalTransferSize: number;
-  percentage: number;
-  color: string;
-}
 
 const COLORS = [
   '#3b82f6', // blue
@@ -72,10 +64,22 @@ const COLORS = [
   `,
 })
 export class DomainStatsComponent {
-  readonly requests = input.required<RequestDetail[]>();
+  /** Pre-computed analytics from backend (preferred) */
+  readonly analytics = input<DomainAnalytics>();
+  /** Raw requests for fallback computation */
+  readonly requests = input<RequestDetail[]>();
 
   readonly domainStats = computed((): DomainStat[] => {
+    // Prefer pre-computed analytics
+    const analytics = this.analytics();
+    if (analytics) {
+      return analytics.domains;
+    }
+
+    // Fallback: compute from raw requests
     const requests = this.requests();
+    if (!requests || requests.length === 0) return [];
+
     const statsMap = new Map<string, { requestCount: number; totalTransferSize: number }>();
 
     for (const req of requests) {
@@ -122,11 +126,15 @@ export class DomainStatsComponent {
     return `conic-gradient(${segments.join(', ')})`;
   });
 
-  readonly totalRequests = computed(() =>
-    this.domainStats().reduce((sum, s) => sum + s.requestCount, 0)
-  );
+  readonly totalRequests = computed(() => {
+    const analytics = this.analytics();
+    if (analytics) return analytics.totalRequests;
+    return this.domainStats().reduce((sum, s) => sum + s.requestCount, 0);
+  });
 
-  readonly totalSize = computed(() =>
-    this.domainStats().reduce((sum, s) => sum + s.totalTransferSize, 0)
-  );
+  readonly totalSize = computed(() => {
+    const analytics = this.analytics();
+    if (analytics) return analytics.totalSize;
+    return this.domainStats().reduce((sum, s) => sum + s.totalTransferSize, 0);
+  });
 }

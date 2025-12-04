@@ -1,13 +1,6 @@
 import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
-import type { RequestDetail } from '../../../../core/models';
-
-interface ProtocolStat {
-  protocol: string;
-  count: number;
-  percentage: number;
-  color: string;
-}
+import type { RequestDetail, ProtocolAnalytics, ProtocolStat } from '../../../../core/models';
 
 @Component({
   selector: 'app-protocol-stats',
@@ -49,7 +42,10 @@ interface ProtocolStat {
   `,
 })
 export class ProtocolStatsComponent {
-  readonly requests = input.required<RequestDetail[]>();
+  /** Pre-computed analytics from backend (preferred) */
+  readonly analytics = input<ProtocolAnalytics>();
+  /** Raw requests for fallback computation */
+  readonly requests = input<RequestDetail[]>();
 
   private readonly protocolColors: Record<string, string> = {
     'HTTP/3': '#10b981', // green-500
@@ -59,10 +55,17 @@ export class ProtocolStatsComponent {
   };
 
   readonly protocolStats = computed((): ProtocolStat[] => {
-    const requests = this.requests();
-    const total = requests.length;
-    if (total === 0) return [];
+    // Prefer pre-computed analytics
+    const analytics = this.analytics();
+    if (analytics) {
+      return analytics.protocols;
+    }
 
+    // Fallback: compute from raw requests
+    const requests = this.requests();
+    if (!requests || requests.length === 0) return [];
+
+    const total = requests.length;
     const counts = new Map<string, number>();
 
     for (const req of requests) {
@@ -84,7 +87,11 @@ export class ProtocolStatsComponent {
       });
   });
 
-  readonly totalRequests = computed(() => this.requests().length);
+  readonly totalRequests = computed(() => {
+    const analytics = this.analytics();
+    if (analytics) return analytics.totalRequests;
+    return this.requests()?.length ?? 0;
+  });
 
   private normalizeProtocol(protocol: string): string {
     const p = protocol.toLowerCase();

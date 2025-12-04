@@ -1,14 +1,6 @@
 import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
-import type { RequestDetail } from '../../../../core/models';
+import type { RequestDetail, DuplicateAnalytics, DuplicateGroup } from '../../../../core/models';
 import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
-
-interface DuplicateGroup {
-  filename: string;
-  resourceSize: number;
-  resourceType: string;
-  urls: string[];
-  wastedBytes: number;
-}
 
 @Component({
   selector: 'app-duplicates',
@@ -47,8 +39,8 @@ interface DuplicateGroup {
               <div class="text-xs text-gray-500">
                 <p class="mb-1">{{ dup.urls.length }} occurrences :</p>
                 <ul class="list-disc list-inside space-y-0.5">
-                  @for (url of dup.urls; track url) {
-                    <li class="truncate" [title]="url">{{ getDomain(url) }}</li>
+                  @for (domain of getDomains(dup); track domain) {
+                    <li class="truncate">{{ domain }}</li>
                   }
                 </ul>
               </div>
@@ -60,20 +52,31 @@ interface DuplicateGroup {
   `,
 })
 export class DuplicatesComponent {
-  readonly requests = input.required<RequestDetail[]>();
+  /** Pre-computed analytics from backend (preferred) */
+  readonly analytics = input<DuplicateAnalytics>();
+  /** Raw requests for fallback computation */
+  readonly requests = input<RequestDetail[]>();
 
   readonly duplicates = computed((): DuplicateGroup[] => {
+    // Prefer pre-computed analytics
+    const analytics = this.analytics();
+    if (analytics) {
+      return analytics.duplicates;
+    }
+
+    // Fallback: compute from raw requests
     const requests = this.requests();
+    if (!requests || requests.length === 0) return [];
+
     const groups = new Map<
       string,
       { urls: string[]; resourceType: string; resourceSize: number }
     >();
 
     for (const req of requests) {
-      const filename = this.getFilename(req.url);
+      const filename = this.extractFilename(req.url);
       if (!filename) continue;
 
-      // Key = filename + size (same name AND same size = duplicate)
       const key = `${filename}:${req.resourceSize}`;
       const existing = groups.get(key);
 
@@ -88,28 +91,40 @@ export class DuplicatesComponent {
       }
     }
 
-    // Keep only groups with more than 1 occurrence
     return Array.from(groups.entries())
       .filter(([, group]) => group.urls.length > 1)
-      .map(([key, group]) => ({
-        filename: key.split(':')[0],
-        resourceSize: group.resourceSize,
-        resourceType: group.resourceType,
-        urls: group.urls,
-        wastedBytes: (group.urls.length - 1) * group.resourceSize,
-      }))
+      .map(([key, group]) => {
+        const domains = [...new Set(group.urls.map((url) => this.extractDomain(url)))].sort();
+        return {
+          filename: key.split(':')[0],
+          resourceSize: group.resourceSize,
+          resourceType: group.resourceType,
+          urls: group.urls,
+          domains,
+          wastedBytes: (group.urls.length - 1) * group.resourceSize,
+        };
+      })
       .sort((a, b) => b.wastedBytes - a.wastedBytes);
   });
 
-  readonly totalWastedBytes = computed(() =>
-    this.duplicates().reduce((sum, d) => sum + d.wastedBytes, 0)
-  );
+  readonly totalWastedBytes = computed(() => {
+    const analytics = this.analytics();
+    if (analytics) return analytics.totalWastedBytes;
+    return this.duplicates().reduce((sum, d) => sum + d.wastedBytes, 0);
+  });
 
-  private getFilename(url: string): string {
+  getDomains(dup: DuplicateGroup): string[] {
+    // Pre-computed analytics has domains, fallback uses urls
+    if (dup.domains && dup.domains.length > 0) {
+      return dup.domains;
+    }
+    return dup.urls.map((url) => this.extractDomain(url));
+  }
+
+  private extractFilename(url: string): string {
     try {
       const pathname = new URL(url).pathname;
       const filename = pathname.split('/').pop() || '';
-      // Skip empty filenames or index files
       if (!filename || filename === 'index.html') return '';
       return filename;
     } catch {
@@ -117,7 +132,7 @@ export class DuplicatesComponent {
     }
   }
 
-  getDomain(url: string): string {
+  private extractDomain(url: string): string {
     try {
       return new URL(url).hostname;
     } catch {
