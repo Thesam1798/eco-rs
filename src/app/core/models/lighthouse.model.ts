@@ -59,6 +59,22 @@ export interface SeoMetrics {
 }
 
 /**
+ * Cache analysis item from uses-long-cache-ttl audit
+ */
+export interface CacheItem {
+  /** Full URL of the resource */
+  url: string;
+  /** Cache lifetime in milliseconds */
+  cacheLifetimeMs: number;
+  /** Cache hit probability (0.0 - 1.0) */
+  cacheHitProbability: number;
+  /** Total bytes of the resource */
+  totalBytes: number;
+  /** Bytes wasted due to short cache TTL */
+  wastedBytes: number;
+}
+
+/**
  * Detailed information about a single HTTP request
  */
 export interface RequestDetail {
@@ -103,6 +119,8 @@ export interface LighthouseResult {
   seo: SeoMetrics;
   /** Detailed information about each HTTP request */
   requests?: RequestDetail[];
+  /** Cache analysis from uses-long-cache-ttl audit */
+  cacheAnalysis?: CacheItem[];
   /** Path to the HTML report file (if requested) */
   htmlReportPath?: string;
 }
