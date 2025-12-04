@@ -305,6 +305,24 @@ function extractRequestDetails(lhr) {
 }
 
 /**
+ * Extract cache analysis from uses-long-cache-ttl audit
+ */
+function extractCacheAnalysis(lhr) {
+  const cacheAudit = lhr.audits?.['uses-long-cache-ttl'];
+  if (!cacheAudit?.details?.items) {
+    return [];
+  }
+
+  return cacheAudit.details.items.map((item) => ({
+    url: item.url || '',
+    cacheLifetimeMs: item.cacheLifetimeMs || 0,
+    cacheHitProbability: item.cacheHitProbability || 0,
+    totalBytes: item.totalBytes || 0,
+    wastedBytes: item.wastedBytes || 0,
+  }));
+}
+
+/**
  * Extract resource count breakdown by type
  */
 function extractResourceBreakdown(lhr) {
@@ -506,6 +524,9 @@ async function runAnalysis(url, chromePath, includeHtml = false) {
     // Extract detailed request information
     const requests = extractRequestDetails(lhr);
 
+    // Extract cache analysis from uses-long-cache-ttl audit
+    const cacheAnalysis = extractCacheAnalysis(lhr);
+
     // Extract Lighthouse scores
     const perfMetrics = extractPerformanceMetrics(lhr);
     const a11yMetrics = extractAccessibilityMetrics(lhr);
@@ -521,6 +542,7 @@ async function runAnalysis(url, chromePath, includeHtml = false) {
       },
       resourceBreakdown,
       requests,
+      cacheAnalysis,
       lighthouse: {
         ...perfMetrics,
         accessibility: a11yMetrics.accessibility,

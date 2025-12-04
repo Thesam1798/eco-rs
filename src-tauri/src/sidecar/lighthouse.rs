@@ -66,6 +66,8 @@ struct RawSidecarSuccess {
     resource_breakdown: ResourceBreakdown,
     #[serde(default)]
     requests: Vec<RequestDetail>,
+    #[serde(default)]
+    cache_analysis: Vec<CacheItem>,
     lighthouse: LighthouseScores,
     accessibility_issues: Vec<AccessibilityIssue>,
     #[serde(default)]
@@ -158,6 +160,22 @@ pub struct AccessibilityIssue {
     pub impact: String,
 }
 
+/// Cache analysis item from uses-long-cache-ttl audit.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CacheItem {
+    /// Full URL of the resource.
+    pub url: String,
+    /// Cache lifetime in milliseconds.
+    pub cache_lifetime_ms: u64,
+    /// Cache hit probability (0.0 - 1.0).
+    pub cache_hit_probability: f64,
+    /// Total bytes of the resource.
+    pub total_bytes: u64,
+    /// Bytes wasted due to short cache TTL.
+    pub wasted_bytes: u64,
+}
+
 /// Detailed information about a single HTTP request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -227,6 +245,9 @@ pub struct LighthouseResult {
     /// Detailed information about each HTTP request.
     #[serde(default)]
     pub requests: Vec<RequestDetail>,
+    /// Cache analysis from uses-long-cache-ttl audit.
+    #[serde(default)]
+    pub cache_analysis: Vec<CacheItem>,
     /// Path to HTML Lighthouse report (if requested).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html_report_path: Option<String>,
@@ -399,6 +420,7 @@ pub async fn run_lighthouse_analysis(
                     seo_score: raw.lighthouse.seo,
                 },
                 requests: raw.requests,
+                cache_analysis: raw.cache_analysis,
                 html_report_path: raw.html_report_path,
             })
         },
