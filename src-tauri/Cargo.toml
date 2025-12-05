@@ -38,6 +38,10 @@ url = "2"
 # Chrome DevTools Protocol
 chromiumoxide = { version = "0.7", features = ["tokio-runtime"], default-features = false }
 
+# Logging
+log = "0.4"
+simplelog = "0.12"
+
 # Platform-specific paths (macOS)
 [target.'cfg(target_os = "macos")'.dependencies]
 dirs = "6"

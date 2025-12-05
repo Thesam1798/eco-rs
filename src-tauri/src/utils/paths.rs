@@ -110,28 +110,52 @@ impl Default for AppPaths {
 ///
 /// Tries locations in order:
 /// 1. Resource directory (bundled production mode)
-/// 2. Binaries directory next to executable (development mode)
+/// 2. Binaries directory in lib folder (installed deb/rpm)
+/// 3. Binaries directory next to executable (development mode)
 ///
 /// # Errors
 ///
 /// Returns an error if Chrome cannot be found in any location.
 pub fn resolve_chrome_path(app: &tauri::AppHandle) -> Result<PathBuf, BrowserError> {
+    let target_triple = get_target_triple();
+    let mut tried_paths: Vec<String> = Vec::new();
+
     // Try resource directory first (production bundle)
     if let Ok(resource_dir) = app.path().resource_dir() {
+        log::debug!("Resource dir: {}", resource_dir.display());
+
+        // Try direct chrome-headless-shell directory
         let chrome_path = resolve_chrome_from_dir(&resource_dir.join("chrome-headless-shell"));
+        tried_paths.push(format!("{}", chrome_path.display()));
         if chrome_path.exists() {
+            log::info!("Chrome found at: {}", chrome_path.display());
+            return Ok(chrome_path);
+        }
+
+        // Try binaries directory with target triple (deb/rpm structure)
+        // Structure: /usr/lib/EcoIndex Analyzer/binaries/chrome-headless-shell-{target}/
+        let chrome_dir = resource_dir
+            .join("binaries")
+            .join(format!("chrome-headless-shell-{target_triple}"));
+        let chrome_path = resolve_chrome_from_dir(&chrome_dir);
+        tried_paths.push(format!("{}", chrome_path.display()));
+        log::debug!("Trying installed path: {}", chrome_path.display());
+        if chrome_path.exists() {
+            log::info!("Chrome found at: {}", chrome_path.display());
             return Ok(chrome_path);
         }
     }
 
     // Try binaries directory next to executable (development)
     if let Some(chrome_path) = resolve_chrome_from_dev_binaries() {
+        log::info!("Chrome found at dev location: {}", chrome_path.display());
         return Ok(chrome_path);
     }
 
-    Err(BrowserError::NotFound(
-        "Chrome Headless Shell not found. Run 'pnpm download:chrome' first.".to_string(),
-    ))
+    log::error!("Chrome NOT FOUND. Tried paths: {tried_paths:?}");
+    Err(BrowserError::NotFound(format!(
+        "Chrome Headless Shell not found. Tried: {tried_paths:?}. Run 'pnpm download:chrome' first."
+    )))
 }
 
 /// Resolve Chrome Headless Shell path from a directory.

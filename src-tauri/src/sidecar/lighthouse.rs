@@ -608,14 +608,31 @@ fn extract_json(output: &str) -> Option<&str> {
 ///
 /// Tries locations in order:
 /// 1. Resource directory (production bundle)
-/// 2. Development path (src-tauri/resources/)
+/// 2. Resource directory with extra resources subfolder (deb/rpm structure)
+/// 3. Development path (src-tauri/resources/)
 fn resolve_lighthouse_script_path(app: &tauri::AppHandle) -> Result<PathBuf, SidecarError> {
     // Try resource directory first (production)
     if let Ok(resource_dir) = app.path().resource_dir() {
+        log::debug!("Lighthouse: resource dir: {}", resource_dir.display());
+
+        // Try direct path
         let script_path = resource_dir
             .join("lighthouse-sidecar")
             .join("node-main.mjs");
+        log::debug!("Lighthouse: trying {}", script_path.display());
         if script_path.exists() {
+            log::info!("Lighthouse script found at: {}", script_path.display());
+            return Ok(script_path);
+        }
+
+        // Try with extra resources subfolder (deb/rpm structure)
+        let script_path = resource_dir
+            .join("resources")
+            .join("lighthouse-sidecar")
+            .join("node-main.mjs");
+        log::debug!("Lighthouse: trying {}", script_path.display());
+        if script_path.exists() {
+            log::info!("Lighthouse script found at: {}", script_path.display());
             return Ok(script_path);
         }
     }
