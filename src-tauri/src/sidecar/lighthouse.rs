@@ -260,10 +260,10 @@ pub struct TtfbMetrics {
 pub struct CoverageItem {
     /// Full URL of the resource.
     pub url: String,
-    /// Total bytes of the resource.
-    pub total_bytes: u64,
-    /// Bytes that are unused.
-    pub wasted_bytes: u64,
+    /// Total bytes of the resource (can be fractional from Lighthouse).
+    pub total_bytes: f64,
+    /// Bytes that are unused (can be fractional from Lighthouse).
+    pub wasted_bytes: f64,
     /// Percentage of unused code.
     pub wasted_percent: f64,
 }
@@ -272,8 +272,8 @@ pub struct CoverageItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UnusedCodeStats {
-    /// Total wasted bytes.
-    pub wasted_bytes: u64,
+    /// Total wasted bytes (can be fractional from Lighthouse).
+    pub wasted_bytes: f64,
     /// Overall wasted percentage.
     pub wasted_percentage: f64,
     /// Individual items with details.
@@ -296,18 +296,18 @@ pub struct CoverageAnalytics {
 pub struct CompressionItem {
     /// Full URL of the resource.
     pub url: String,
-    /// Total bytes of the resource.
-    pub total_bytes: u64,
-    /// Bytes savable with compression.
-    pub wasted_bytes: u64,
+    /// Total bytes of the resource (can be fractional from Lighthouse).
+    pub total_bytes: f64,
+    /// Bytes savable with compression (can be fractional from Lighthouse).
+    pub wasted_bytes: f64,
 }
 
 /// Compression analytics (gzip/brotli opportunities).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompressionAnalytics {
-    /// Total potential savings in bytes.
-    pub potential_savings: u64,
+    /// Total potential savings in bytes (can be fractional from Lighthouse).
+    pub potential_savings: f64,
     /// Individual items that can be compressed.
     pub items: Vec<CompressionItem>,
     /// Compression score (0-100, 100 = fully optimized).
@@ -322,18 +322,18 @@ pub struct ImageFormatItem {
     pub url: String,
     /// Current format (jpeg, png, etc.).
     pub from_format: String,
-    /// Total bytes of the image.
-    pub total_bytes: u64,
-    /// Bytes savable with modern formats.
-    pub wasted_bytes: u64,
+    /// Total bytes of the image (can be fractional from Lighthouse).
+    pub total_bytes: f64,
+    /// Bytes savable with modern formats (can be fractional from Lighthouse).
+    pub wasted_bytes: f64,
 }
 
 /// Image format analytics (WebP/AVIF opportunities).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImageFormatAnalytics {
-    /// Total potential savings in bytes.
-    pub potential_savings: u64,
+    /// Total potential savings in bytes (can be fractional from Lighthouse).
+    pub potential_savings: f64,
     /// Individual images that can be converted.
     pub items: Vec<ImageFormatItem>,
     /// Image format score (0-100, 100 = fully optimized).
