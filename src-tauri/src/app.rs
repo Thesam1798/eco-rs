@@ -2,7 +2,51 @@
 //!
 //! This module configures and builds the Tauri application with all plugins and handlers.
 
+use log::LevelFilter;
+use simplelog::{CombinedLogger, Config, SharedLogger, WriteLogger};
+#[cfg(debug_assertions)]
+use simplelog::{TermLogger, TerminalMode};
+use std::fs::File;
 use tauri::App;
+
+use crate::utils::AppPaths;
+
+/// Initialize the logging system.
+///
+/// Logs are written to both terminal (in debug mode) and a file.
+fn init_logger() {
+    let mut loggers: Vec<Box<dyn SharedLogger>> = Vec::new();
+
+    // Terminal logger (debug builds only)
+    #[cfg(debug_assertions)]
+    {
+        loggers.push(TermLogger::new(
+            LevelFilter::Debug,
+            Config::default(),
+            TerminalMode::Mixed,
+            simplelog::ColorChoice::Auto,
+        ));
+    }
+
+    // File logger (always enabled, debug level)
+    if let Some(paths) = AppPaths::new() {
+        if paths.ensure_dirs().is_ok() {
+            let log_file = paths.logs_dir.join("ecoindex.log");
+            if let Ok(file) = File::create(&log_file) {
+                loggers.push(WriteLogger::new(
+                    LevelFilter::Debug,
+                    Config::default(),
+                    file,
+                ));
+            }
+        }
+    }
+
+    // Initialize combined logger (ignore error if already initialized)
+    if !loggers.is_empty() {
+        let _ = CombinedLogger::init(loggers);
+    }
+}
 
 /// Configure and build the Tauri application.
 ///
@@ -10,22 +54,17 @@ use tauri::App;
 ///
 /// Returns an error if the application fails to build.
 pub fn build() -> tauri::Result<App> {
+    // Initialize logging first
+    init_logger();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .manage(crate::sidecar::AnalysisState::default())
         .setup(|app| {
-            // Log application info in development
-            #[cfg(debug_assertions)]
-            {
-                let version = app.package_info().version.to_string();
-                let name = &app.package_info().name;
-                println!("[EcoIndex] Starting {name} v{version}");
-            }
-
-            // Suppress unused variable warning in release builds
-            #[cfg(not(debug_assertions))]
-            let _ = app;
+            let version = app.package_info().version.to_string();
+            let name = &app.package_info().name;
+            log::info!("Starting {name} v{version}");
 
             Ok(())
         })
