@@ -105,9 +105,16 @@ export class CacheIssuesComponent {
     const requests = this.requests();
     if (!requests || requests.length === 0) return [];
 
+    // Sort by impact: prioritize no-cache, then short cache, then by size
+    // Impact score = resourceSize * (1 / (1 + cacheMs/day))
+    const computeImpact = (item: RequestDetail): number => {
+      if (item.cacheLifetimeMs === 0) return item.resourceSize * 1000; // No cache = highest impact
+      return item.resourceSize * (MS_DAY / (item.cacheLifetimeMs + MS_DAY));
+    };
+
     return requests
       .filter((item) => item.cacheLifetimeMs < MS_WEEK)
-      .sort((a, b) => a.cacheLifetimeMs - b.cacheLifetimeMs)
+      .sort((a, b) => computeImpact(b) - computeImpact(a))
       .map((item) => ({
         url: item.url,
         domain: item.domain,

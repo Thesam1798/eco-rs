@@ -600,12 +600,29 @@ function extractImageFormatStats(lhr) {
   const audit = lhr.audits?.['modern-image-formats'];
   return {
     potentialSavings: audit?.details?.overallSavingsBytes || 0,
-    items: (audit?.details?.items || []).map((item) => ({
-      url: item.url || '',
-      fromFormat: item.fromProtocol || 'unknown',
-      totalBytes: item.totalBytes || 0,
-      wastedBytes: item.wastedBytes || 0,
-    })),
+    items: (audit?.details?.items || []).map((item) => {
+      // fromProtocol can be a boolean or string - normalize to string
+      let fromFormat = 'unknown';
+      if (typeof item.fromProtocol === 'string') {
+        fromFormat = item.fromProtocol;
+      } else if (item.mimeType) {
+        // Extract format from mimeType (e.g., "image/jpeg" -> "jpeg")
+        const match = item.mimeType.match(/image\/(\w+)/);
+        fromFormat = match ? match[1] : 'unknown';
+      } else if (item.url) {
+        // Extract format from URL extension (e.g., "image.jpg" -> "jpg")
+        const urlMatch = item.url.match(/\.(\w+)(?:\?.*)?$/);
+        if (urlMatch) {
+          fromFormat = urlMatch[1].toLowerCase();
+        }
+      }
+      return {
+        url: item.url || '',
+        fromFormat,
+        totalBytes: item.totalBytes || 0,
+        wastedBytes: item.wastedBytes || 0,
+      };
+    }),
     score: Math.round((audit?.score ?? 1) * 100),
   };
 }

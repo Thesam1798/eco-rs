@@ -139,13 +139,20 @@ impl CacheAnalytics {
             });
         }
 
-        // Problematic resources: cache < 7 days, sorted by TTL ascending
+        // Problematic resources: cache < 7 days, sorted by impact (no-cache + large size first)
         let mut problematic: Vec<_> = requests
             .iter()
             .filter(|r| r.cache_lifetime_ms < MS_WEEK)
             .cloned()
             .collect();
-        problematic.sort_by_key(|r| r.cache_lifetime_ms);
+        // Impact score: prioritize no-cache, then factor in size
+        problematic.sort_by(|a, b| {
+            let impact_a = Self::compute_impact(a.cache_lifetime_ms, a.resource_size);
+            let impact_b = Self::compute_impact(b.cache_lifetime_ms, b.resource_size);
+            impact_b
+                .partial_cmp(&impact_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let problematic_resources: Vec<ProblematicResource> = problematic
             .into_iter()
@@ -221,6 +228,18 @@ impl CacheAnalytics {
             "<1j".to_string()
         } else {
             "<7j".to_string()
+        }
+    }
+
+    /// Compute impact score for sorting.
+    /// Higher score = more problematic (no cache + large size = highest impact).
+    #[allow(clippy::cast_precision_loss)]
+    fn compute_impact(cache_ms: u64, size: u64) -> f64 {
+        let size_f = size as f64;
+        if cache_ms == 0 {
+            size_f * 1000.0 // No cache = highest impact
+        } else {
+            size_f * (MS_DAY as f64 / (cache_ms as f64 + MS_DAY as f64))
         }
     }
 }
