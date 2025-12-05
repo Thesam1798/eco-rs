@@ -1,6 +1,8 @@
-import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
+import { Component, input, computed, signal, ChangeDetectionStrategy } from '@angular/core';
 import type { RequestDetail, DuplicateAnalytics, DuplicateGroup } from '../../../../core/models';
 import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
+
+const VISIBLE_LIMIT = 3;
 
 @Component({
   selector: 'app-duplicates',
@@ -25,7 +27,7 @@ import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
         </div>
 
         <div class="space-y-4">
-          @for (dup of duplicates(); track dup.filename + dup.resourceSize) {
+          @for (dup of visibleDuplicates(); track dup.filename + dup.resourceSize) {
             <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
               <div class="flex items-center justify-between mb-2">
                 <div class="flex items-center gap-2">
@@ -47,6 +49,16 @@ import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
             </div>
           }
         </div>
+
+        @if (hasMore()) {
+          <button
+            type="button"
+            (click)="toggleShowAll()"
+            class="mt-4 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            {{ showAll() ? 'Masquer' : 'Voir les ' + hiddenCount() + ' autres duplicatas' }}
+          </button>
+        }
       }
     </div>
   `,
@@ -56,6 +68,9 @@ export class DuplicatesComponent {
   readonly analytics = input<DuplicateAnalytics>();
   /** Raw requests for fallback computation */
   readonly requests = input<RequestDetail[]>();
+
+  /** Toggle state for showing all items */
+  readonly showAll = signal(false);
 
   readonly duplicates = computed((): DuplicateGroup[] => {
     // Prefer pre-computed analytics
@@ -112,6 +127,23 @@ export class DuplicatesComponent {
     if (analytics) return analytics.totalWastedBytes;
     return this.duplicates().reduce((sum, d) => sum + d.wastedBytes, 0);
   });
+
+  /** Visible duplicates (limited or all based on showAll state) */
+  readonly visibleDuplicates = computed(() => {
+    const all = this.duplicates();
+    return this.showAll() ? all : all.slice(0, VISIBLE_LIMIT);
+  });
+
+  /** Whether there are more items to show */
+  readonly hasMore = computed(() => this.duplicates().length > VISIBLE_LIMIT);
+
+  /** Number of hidden items */
+  readonly hiddenCount = computed(() => this.duplicates().length - VISIBLE_LIMIT);
+
+  /** Toggle show all state */
+  toggleShowAll(): void {
+    this.showAll.update((v) => !v);
+  }
 
   getDomains(dup: DuplicateGroup): string[] {
     // Pre-computed analytics has domains, fallback uses urls
