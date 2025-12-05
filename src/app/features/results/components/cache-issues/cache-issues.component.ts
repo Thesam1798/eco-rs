@@ -1,10 +1,11 @@
-import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
+import { Component, input, computed, signal, ChangeDetectionStrategy } from '@angular/core';
 import type { RequestDetail, CacheAnalytics, ProblematicResource } from '../../../../core/models';
 import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
 
 const MS_HOUR = 3600000;
 const MS_DAY = 86400000;
 const MS_WEEK = 604800000;
+const VISIBLE_LIMIT = 5;
 
 @Component({
   selector: 'app-cache-issues',
@@ -18,9 +19,11 @@ const MS_WEEK = 604800000;
       @if (problematicResources().length === 0) {
         <p class="text-green-600 text-sm">Toutes les ressources ont une bonne politique de cache</p>
       } @else {
-        <div class="mb-3 text-sm text-amber-700">
-          <span class="font-semibold">{{ problematicResources().length }}</span> ressource(s) avec
-          cache &lt; 7 jours
+        <div class="mb-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+          <span class="text-sm text-amber-700">
+            <span class="font-semibold">{{ problematicResources().length }}</span> ressource(s) avec
+            cache &lt; 7 jours
+          </span>
         </div>
 
         <div class="overflow-x-auto">
@@ -34,7 +37,7 @@ const MS_WEEK = 604800000;
               </tr>
             </thead>
             <tbody>
-              @for (item of problematicResources(); track item.url) {
+              @for (item of visibleResources(); track item.url) {
                 <tr class="border-b border-gray-100 hover:bg-gray-50">
                   <td class="py-2 px-2">
                     <div class="flex items-center gap-1.5">
@@ -68,6 +71,16 @@ const MS_WEEK = 604800000;
             </tbody>
           </table>
         </div>
+
+        @if (hasMore()) {
+          <button
+            type="button"
+            (click)="toggleShowAll()"
+            class="mt-4 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            {{ showAll() ? 'Masquer' : 'Voir les ' + hiddenCount() + ' autres ressources' }}
+          </button>
+        }
       }
     </div>
   `,
@@ -77,6 +90,9 @@ export class CacheIssuesComponent {
   readonly analytics = input<CacheAnalytics>();
   /** Raw requests for fallback computation */
   readonly requests = input<RequestDetail[]>();
+
+  /** Toggle state for showing all items */
+  readonly showAll = signal(false);
 
   readonly problematicResources = computed((): ProblematicResource[] => {
     // Prefer pre-computed analytics
@@ -103,6 +119,23 @@ export class CacheIssuesComponent {
         resourceSize: item.resourceSize,
       }));
   });
+
+  /** Visible resources (limited or all based on showAll state) */
+  readonly visibleResources = computed(() => {
+    const all = this.problematicResources();
+    return this.showAll() ? all : all.slice(0, VISIBLE_LIMIT);
+  });
+
+  /** Whether there are more items to show */
+  readonly hasMore = computed(() => this.problematicResources().length > VISIBLE_LIMIT);
+
+  /** Number of hidden items */
+  readonly hiddenCount = computed(() => this.problematicResources().length - VISIBLE_LIMIT);
+
+  /** Toggle show all state */
+  toggleShowAll(): void {
+    this.showAll.update((v) => !v);
+  }
 
   // Helper methods that work with both data sources
   getFilename(item: ProblematicResource): string {

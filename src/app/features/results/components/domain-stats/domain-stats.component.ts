@@ -1,7 +1,9 @@
-import { Component, input, computed, ChangeDetectionStrategy } from '@angular/core';
+import { Component, input, computed, signal, ChangeDetectionStrategy } from '@angular/core';
 import type { RequestDetail, DomainAnalytics, DomainStat } from '../../../../core/models';
 import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
 import { DecimalPipe } from '@angular/common';
+
+const VISIBLE_LIMIT = 5;
 
 const COLORS = [
   '#3b82f6', // blue
@@ -26,8 +28,20 @@ const COLORS = [
       @if (domainStats().length === 0) {
         <p class="text-gray-500 text-sm">Aucune donnee disponible</p>
       } @else {
+        <!-- Summary -->
+        <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-700">
+              <span class="font-semibold">{{ domainStats().length }}</span> domaines
+            </span>
+            <span class="text-gray-600">
+              {{ totalRequests() }} requetes &middot; {{ totalSize() | formatBytes }}
+            </span>
+          </div>
+        </div>
+
         <div class="space-y-3">
-          @for (stat of domainStats(); track stat.domain) {
+          @for (stat of visibleStats(); track stat.domain) {
             <div class="space-y-1">
               <div class="flex items-center justify-between text-sm">
                 <span class="truncate text-gray-700 font-medium" [title]="stat.domain">
@@ -53,13 +67,15 @@ const COLORS = [
           }
         </div>
 
-        <!-- Total -->
-        <div class="mt-4 pt-4 border-t border-gray-100 flex justify-between text-sm text-gray-600">
-          <span>
-            Total : <span class="font-medium text-gray-700">{{ totalRequests() }}</span> requetes
-          </span>
-          <span class="font-medium text-gray-700">{{ totalSize() | formatBytes }}</span>
-        </div>
+        @if (hasMore()) {
+          <button
+            type="button"
+            (click)="toggleShowAll()"
+            class="mt-4 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            {{ showAll() ? 'Masquer' : 'Voir les ' + hiddenCount() + ' autres domaines' }}
+          </button>
+        }
       }
     </div>
   `,
@@ -69,6 +85,9 @@ export class DomainStatsComponent {
   readonly analytics = input<DomainAnalytics>();
   /** Raw requests for fallback computation */
   readonly requests = input<RequestDetail[]>();
+
+  /** Toggle state for showing all items */
+  readonly showAll = signal(false);
 
   readonly domainStats = computed((): DomainStat[] => {
     // Prefer pre-computed analytics
@@ -121,4 +140,21 @@ export class DomainStatsComponent {
     if (analytics) return analytics.totalSize;
     return this.domainStats().reduce((sum, s) => sum + s.totalTransferSize, 0);
   });
+
+  /** Visible stats (limited or all based on showAll state) */
+  readonly visibleStats = computed(() => {
+    const all = this.domainStats();
+    return this.showAll() ? all : all.slice(0, VISIBLE_LIMIT);
+  });
+
+  /** Whether there are more items to show */
+  readonly hasMore = computed(() => this.domainStats().length > VISIBLE_LIMIT);
+
+  /** Number of hidden items */
+  readonly hiddenCount = computed(() => this.domainStats().length - VISIBLE_LIMIT);
+
+  /** Toggle show all state */
+  toggleShowAll(): void {
+    this.showAll.update((v) => !v);
+  }
 }
