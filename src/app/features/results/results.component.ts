@@ -1,32 +1,29 @@
-import { Component, inject, ChangeDetectionStrategy, signal } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
+import { DatePipe } from '@angular/common';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { AnalyzerService } from '../../core/services';
+import { HeroSectionComponent } from './components/hero-section/hero-section.component';
+import { CoreMetricsComponent } from './components/core-metrics/core-metrics.component';
+import { LighthouseSectionComponent } from './components/lighthouse-section/lighthouse-section.component';
+import { NetworkSectionComponent } from './components/network-section/network-section.component';
+import { CoverageSectionComponent } from './components/coverage-section/coverage-section.component';
+import { ImagesSectionComponent } from './components/images-section/images-section.component';
 import { EcoindexCardComponent } from './components/ecoindex-card/ecoindex-card.component';
-import { LighthouseScoresComponent } from './components/lighthouse-scores/lighthouse-scores.component';
-import { DomainStatsComponent } from './components/domain-stats/domain-stats.component';
-import { CacheAnalysisComponent } from './components/cache-analysis/cache-analysis.component';
-import { ProtocolStatsComponent } from './components/protocol-stats/protocol-stats.component';
-import { DuplicatesComponent } from './components/duplicates/duplicates.component';
-import { CacheIssuesComponent } from './components/cache-issues/cache-issues.component';
-import {
-  ResultsTabsComponent,
-  type ResultsTab,
-} from './components/results-tabs/results-tabs.component';
 
 @Component({
   selector: 'app-results',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    DatePipe,
+    HeroSectionComponent,
+    CoreMetricsComponent,
+    LighthouseSectionComponent,
+    NetworkSectionComponent,
+    CoverageSectionComponent,
+    ImagesSectionComponent,
     EcoindexCardComponent,
-    LighthouseScoresComponent,
-    DomainStatsComponent,
-    CacheAnalysisComponent,
-    ProtocolStatsComponent,
-    DuplicatesComponent,
-    CacheIssuesComponent,
-    ResultsTabsComponent,
   ],
   template: `
     <div class="min-h-screen bg-gray-50 py-8 px-4">
@@ -59,82 +56,74 @@ import {
         @if (analyzer.hasResult()) {
           @let result = analyzer.result()!;
 
-          <!-- EcoIndex Card (always visible) -->
-          <app-ecoindex-card [result]="result" />
+          <!-- Quick mode: use simplified EcoIndex card -->
+          @if (result.mode === 'quick') {
+            <app-ecoindex-card [result]="result" />
+          }
 
-          <!-- Full mode: Tab navigation -->
+          <!-- Full mode: hierarchical layout -->
           @if (result.mode === 'full') {
-            <div class="mt-8">
-              <app-results-tabs
-                [activeTab]="activeTab()"
-                [requestCount]="result.data.analytics?.domainStats?.totalRequests ?? result.data.requests?.length ?? 0"
-                [cacheIssueCount]="result.data.analytics?.cacheStats?.problematicCount ?? 0"
-                (tabChange)="onTabChange($event)"
-              />
+            @let data = result.data;
 
-              <!-- Tab Content -->
-              <div class="mt-6">
-                @switch (activeTab()) {
-                  @case ('overview') {
-                    <app-lighthouse-scores [result]="result.data" />
-                  }
-                  @case ('requests') {
-                    @if (result.data.analytics) {
-                      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <app-domain-stats [analytics]="result.data.analytics.domainStats" />
-                        <app-protocol-stats [analytics]="result.data.analytics.protocolStats" />
-                      </div>
-                      <div class="mt-6">
-                        <app-duplicates [analytics]="result.data.analytics.duplicateStats" />
-                      </div>
-                    } @else if (result.data.requests && result.data.requests.length > 0) {
-                      <!-- Fallback: use raw requests if analytics not available -->
-                      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <app-domain-stats [requests]="result.data.requests" />
-                        <app-protocol-stats [requests]="result.data.requests" />
-                      </div>
-                      <div class="mt-6">
-                        <app-duplicates [requests]="result.data.requests" />
-                      </div>
-                    } @else {
-                      <div class="text-center py-12 text-gray-500">
-                        Aucune donnee de requetes disponible.
-                      </div>
-                    }
-                  }
-                  @case ('cache') {
-                    @if (result.data.analytics) {
-                      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <app-cache-analysis [analytics]="result.data.analytics.cacheStats" />
-                        <app-cache-issues [analytics]="result.data.analytics.cacheStats" />
-                      </div>
-                    } @else if (result.data.requests && result.data.requests.length > 0) {
-                      <!-- Fallback: use raw requests if analytics not available -->
-                      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <app-cache-analysis [requests]="result.data.requests" />
-                        <app-cache-issues [requests]="result.data.requests" />
-                      </div>
-                    } @else {
-                      <div class="text-center py-12 text-gray-500">
-                        Aucune donnee de cache disponible.
-                      </div>
-                    }
-                  }
-                  @case ('performance') {
-                    <app-lighthouse-scores [result]="result.data" />
-                  }
-                }
-              </div>
+            <!-- 1. Hero Section: EcoIndex + Performance (above the fold) -->
+            <app-hero-section [result]="data" />
+
+            <!-- 2. Core Metrics: Weight, DOM, Requests -->
+            <section class="mt-6">
+              <app-core-metrics [result]="data" />
+            </section>
+
+            <!-- 3. Lighthouse Section: 4 scores + FCP + TTFB -->
+            <section class="mt-6">
+              <app-lighthouse-section [result]="data" />
+            </section>
+
+            <!-- 4. Network Section: Requests breakdown, compression, cache -->
+            <section class="mt-8">
+              <app-network-section [result]="data" />
+            </section>
+
+            <!-- 5. Coverage Section: Unused JS/CSS -->
+            @if (data.coverage) {
+              <section class="mt-8">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Couverture du code</h2>
+                <app-coverage-section [coverage]="data.coverage" />
+              </section>
+            }
+
+            <!-- 6. Images Section: Format opportunities -->
+            @if (data.imageFormats && data.imageFormats.items.length > 0) {
+              <section class="mt-8">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Optimisation des images</h2>
+                <app-images-section [imageFormats]="data.imageFormats" />
+              </section>
+            }
+
+            <!-- URL & Timestamp footer -->
+            <div class="mt-8 p-4 bg-white rounded-xl shadow text-center">
+              <p class="text-sm text-gray-500">
+                URL :
+                <a
+                  [href]="data.url"
+                  target="_blank"
+                  class="text-green-600 hover:underline font-mono text-xs"
+                >
+                  {{ data.url }}
+                </a>
+              </p>
+              <p class="text-xs text-gray-400 mt-1">
+                {{ data.timestamp | date: 'dd/MM/yyyy HH:mm:ss' }}
+              </p>
             </div>
           }
         } @else {
           <!-- No result -->
           <div class="text-center py-12">
-            <p class="text-gray-600">Aucun resultat a afficher.</p>
+            <p class="text-gray-600">Aucun résultat à afficher.</p>
             <button
               type="button"
               (click)="onBack()"
-              class="mt-4 px-6 py-2 bg-grade-a text-white rounded-lg hover:bg-green-700"
+              class="mt-4 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
               Lancer une analyse
             </button>
@@ -148,15 +137,9 @@ export class ResultsComponent {
   readonly analyzer = inject(AnalyzerService);
   private readonly router = inject(Router);
 
-  readonly activeTab = signal<ResultsTab>('overview');
-
   onBack(): void {
     this.analyzer.reset();
     this.router.navigate(['/']);
-  }
-
-  onTabChange(tab: ResultsTab): void {
-    this.activeTab.set(tab);
   }
 
   async onOpenReport(reportPath: string): Promise<void> {
