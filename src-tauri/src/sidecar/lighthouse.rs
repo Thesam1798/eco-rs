@@ -73,6 +73,18 @@ struct RawSidecarSuccess {
     accessibility_issues: Vec<AccessibilityIssue>,
     #[serde(default)]
     html_report_path: Option<String>,
+    /// TTFB metrics.
+    #[serde(default)]
+    ttfb: Option<TtfbMetrics>,
+    /// Code coverage analytics.
+    #[serde(default)]
+    coverage: Option<CoverageAnalytics>,
+    /// Compression analytics.
+    #[serde(default)]
+    compression: Option<CompressionAnalytics>,
+    /// Image format analytics.
+    #[serde(default)]
+    image_formats: Option<ImageFormatAnalytics>,
 }
 
 // ============================================================================
@@ -173,8 +185,8 @@ pub struct CacheItem {
     pub cache_hit_probability: f64,
     /// Total bytes of the resource.
     pub total_bytes: u64,
-    /// Bytes wasted due to short cache TTL.
-    pub wasted_bytes: u64,
+    /// Bytes wasted due to short cache TTL (can be fractional from Lighthouse).
+    pub wasted_bytes: f64,
 }
 
 /// Detailed information about a single HTTP request.
@@ -228,6 +240,106 @@ pub struct SeoMetrics {
     pub seo_score: u32,
 }
 
+// ============================================================================
+// Additional audit types (for enhanced UI)
+// ============================================================================
+
+/// TTFB (Time To First Byte) metrics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TtfbMetrics {
+    /// TTFB in milliseconds.
+    pub ttfb: f64,
+    /// Display value string from Lighthouse.
+    pub display_value: String,
+}
+
+/// Coverage item for unused code analysis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoverageItem {
+    /// Full URL of the resource.
+    pub url: String,
+    /// Total bytes of the resource.
+    pub total_bytes: u64,
+    /// Bytes that are unused.
+    pub wasted_bytes: u64,
+    /// Percentage of unused code.
+    pub wasted_percent: f64,
+}
+
+/// Statistics for unused code (JS or CSS).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnusedCodeStats {
+    /// Total wasted bytes.
+    pub wasted_bytes: u64,
+    /// Overall wasted percentage.
+    pub wasted_percentage: f64,
+    /// Individual items with details.
+    pub items: Vec<CoverageItem>,
+}
+
+/// Coverage analytics (unused JS/CSS).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoverageAnalytics {
+    /// Unused JavaScript statistics.
+    pub unused_js: UnusedCodeStats,
+    /// Unused CSS statistics.
+    pub unused_css: UnusedCodeStats,
+}
+
+/// Compression opportunity item.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompressionItem {
+    /// Full URL of the resource.
+    pub url: String,
+    /// Total bytes of the resource.
+    pub total_bytes: u64,
+    /// Bytes savable with compression.
+    pub wasted_bytes: u64,
+}
+
+/// Compression analytics (gzip/brotli opportunities).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompressionAnalytics {
+    /// Total potential savings in bytes.
+    pub potential_savings: u64,
+    /// Individual items that can be compressed.
+    pub items: Vec<CompressionItem>,
+    /// Compression score (0-100, 100 = fully optimized).
+    pub score: u32,
+}
+
+/// Image format opportunity item.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageFormatItem {
+    /// Full URL of the image.
+    pub url: String,
+    /// Current format (jpeg, png, etc.).
+    pub from_format: String,
+    /// Total bytes of the image.
+    pub total_bytes: u64,
+    /// Bytes savable with modern formats.
+    pub wasted_bytes: u64,
+}
+
+/// Image format analytics (WebP/AVIF opportunities).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageFormatAnalytics {
+    /// Total potential savings in bytes.
+    pub potential_savings: u64,
+    /// Individual images that can be converted.
+    pub items: Vec<ImageFormatItem>,
+    /// Image format score (0-100, 100 = fully optimized).
+    pub score: u32,
+}
+
 /// Résultat complet de l'analyse Lighthouse.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -258,6 +370,18 @@ pub struct LighthouseResult {
     /// Pre-computed request analytics.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub analytics: Option<RequestAnalytics>,
+    /// TTFB metrics.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ttfb: Option<TtfbMetrics>,
+    /// Code coverage analytics (unused JS/CSS).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub coverage: Option<CoverageAnalytics>,
+    /// Compression analytics (gzip/brotli opportunities).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compression: Option<CompressionAnalytics>,
+    /// Image format analytics (WebP/AVIF opportunities).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_formats: Option<ImageFormatAnalytics>,
 }
 
 /// Erreur retournée par le sidecar.
@@ -275,7 +399,7 @@ struct SidecarErrorResponse {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 enum SidecarOutput {
-    Success(RawSidecarSuccess),
+    Success(Box<RawSidecarSuccess>),
     Error(SidecarErrorResponse),
 }
 
@@ -374,12 +498,14 @@ pub async fn run_lighthouse_analysis(
     let json_str = extract_json(&stdout).ok_or_else(|| {
         SidecarError::ParseError(format!("No valid JSON found in output: {stdout}"))
     })?;
+
     let result: SidecarOutput = serde_json::from_str(json_str).map_err(|e| {
         SidecarError::ParseError(format!("JSON parse error: {e}, json: {json_str}"))
     })?;
 
     match result {
-        SidecarOutput::Success(raw) => {
+        SidecarOutput::Success(boxed_raw) => {
+            let raw = *boxed_raw;
             // Calculate EcoIndex using Rust calculator
             let size_kb = raw.raw_metrics.total_transfer_size as f64 / 1000.0;
             let metrics = PageMetrics::new(
@@ -434,6 +560,10 @@ pub async fn run_lighthouse_analysis(
                 } else {
                     Some(RequestAnalytics::compute(&raw.requests))
                 },
+                ttfb: raw.ttfb,
+                coverage: raw.coverage,
+                compression: raw.compression,
+                image_formats: raw.image_formats,
             })
         },
         SidecarOutput::Error(error_response) => Err(SidecarError::AnalysisFailed {

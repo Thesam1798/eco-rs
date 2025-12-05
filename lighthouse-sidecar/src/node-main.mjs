@@ -5,10 +5,10 @@
  *
  * Returns raw metrics only - EcoIndex calculation is done in Rust backend.
  *
- * Aligned with EcoindexApp methodology:
+ * Cold navigation methodology (cache disabled):
  * - Uses Lighthouse Flow API (startFlow)
- * - Implements warm navigation with scroll pattern
- * - Uses disableStorageReset: true
+ * - Implements cold navigation with scroll pattern
+ * - Disables all browser caching for real network metrics
  * - Counts DOM nodes excluding SVG children
  *
  * Usage: node node-main.mjs <url> <chrome-path> [--html]
@@ -52,7 +52,7 @@ process.on('SIGHUP', cleanup);
 // ============================================================================
 
 /**
- * Chrome flags for headless mode (matching EcoindexApp)
+ * Chrome flags for headless mode with cache disabled
  */
 const CHROME_FLAGS = [
   '--headless=new',
@@ -70,10 +70,15 @@ const CHROME_FLAGS = [
   '--disable-infobars',
   '--window-size=1920,1080',
   '--start-maximized',
+  // Disable browser cache for cold analysis
+  '--disable-application-cache',
+  '--disable-cache',
+  '--disk-cache-size=1',
+  '--media-cache-size=1',
 ];
 
 /**
- * Lighthouse config aligned with EcoindexApp
+ * Lighthouse config for cold analysis (storage reset enabled)
  */
 const LIGHTHOUSE_CONFIG = {
   extends: 'lighthouse:default',
@@ -90,7 +95,7 @@ const LIGHTHOUSE_CONFIG = {
       cpuSlowdownMultiplier: 1,
     },
     throttlingMethod: 'simulate',
-    disableStorageReset: true, // CRITICAL: Keep cookies/storage between navigations
+    disableStorageReset: false, // Reset storage for cold analysis (real network metrics)
     preset: 'desktop',
     maxWaitForFcp: 30000,
     maxWaitForLoad: 45000,
@@ -131,6 +136,32 @@ function printUsage() {
     details: 'Example: node node-main.mjs https://example.com /path/to/chrome',
   };
   console.log(JSON.stringify(usage));
+}
+
+/**
+ * Capture TTFB (Time To First Byte) via Navigation Timing API
+ * This is more reliable than Lighthouse audits in Flow mode
+ */
+async function captureNavigationTiming(page) {
+  try {
+    return await page.evaluate(() => {
+      const nav = performance.getEntriesByType('navigation')[0];
+      if (nav) {
+        // responseStart = time when first byte received
+        // fetchStart = time when fetch started
+        // TTFB = responseStart - fetchStart
+        const ttfb = Math.round(nav.responseStart - nav.fetchStart);
+        return {
+          ttfb: ttfb > 0 ? ttfb : 0,
+          responseStart: Math.round(nav.responseStart),
+          fetchStart: Math.round(nav.fetchStart),
+        };
+      }
+      return null;
+    });
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -302,6 +333,9 @@ function extractRequestDetails(lhr) {
       // Resources not in audit have cache >= 1 year (good)
       const cacheLifetimeMs = cacheTtlMap.has(url) ? cacheTtlMap.get(url) : 31536000000;
 
+      // For cached resources, transferSize is 0 - use resourceSize as fallback for display
+      const displayTransferSize = transferSize > 0 ? transferSize : resourceSize;
+
       return {
         url,
         domain,
@@ -309,7 +343,7 @@ function extractRequestDetails(lhr) {
         statusCode: item.statusCode || 0,
         mimeType: item.mimeType || 'unknown',
         resourceType: item.resourceType || 'Other',
-        transferSize,
+        transferSize: displayTransferSize,
         resourceSize,
         priority: item.priority || 'Medium',
         startTime: Math.round(startTime * 100) / 100,
@@ -454,6 +488,129 @@ function extractOtherScores(lhr) {
 }
 
 /**
+ * Extract TTFB (Time To First Byte) from server-response-time audit
+ * Falls back to calculating from first document request if audit not available
+ */
+function extractTTFB(lhr) {
+  // Try server-response-time audit first
+  const audit = lhr.audits?.['server-response-time'];
+  if (audit?.numericValue) {
+    return {
+      ttfb: audit.numericValue,
+      displayValue: audit.displayValue || `${Math.round(audit.numericValue)} ms`,
+    };
+  }
+
+  // Fallback: get TTFB from network-requests (first Document request)
+  const networkAudit = lhr.audits?.['network-requests'];
+  if (networkAudit?.details?.items) {
+    const docRequest = networkAudit.details.items.find(
+      (item) => item.resourceType === 'Document' && item.statusCode >= 200 && item.statusCode < 400
+    );
+    if (docRequest) {
+      // TTFB = time from request start to first byte received
+      // In Lighthouse, this is approximated by the request duration for the document
+      const ttfb = docRequest.networkRequestTime
+        ? Math.round(docRequest.networkRequestTime * 1000)
+        : Math.round((docRequest.endTime - docRequest.startTime) * 1000);
+      return {
+        ttfb: ttfb > 0 ? ttfb : 0,
+        displayValue: `${ttfb} ms`,
+      };
+    }
+  }
+
+  // Last resort: try timing metrics
+  const timing = lhr.audits?.['timing-budget']?.details?.items?.[0];
+  if (timing?.ttfb) {
+    return {
+      ttfb: timing.ttfb,
+      displayValue: `${Math.round(timing.ttfb)} ms`,
+    };
+  }
+
+  return {
+    ttfb: 0,
+    displayValue: 'N/A',
+  };
+}
+
+/**
+ * Extract coverage stats from unused-javascript and unused-css-rules audits
+ */
+function extractCoverageStats(lhr) {
+  const jsAudit = lhr.audits?.['unused-javascript'];
+  const cssAudit = lhr.audits?.['unused-css-rules'];
+
+  const calculateWastedPercentage = (audit) => {
+    if (!audit?.details?.items?.length) return 0;
+    let totalBytes = 0;
+    let wastedBytes = 0;
+    for (const item of audit.details.items) {
+      totalBytes += item.totalBytes || 0;
+      wastedBytes += item.wastedBytes || 0;
+    }
+    return totalBytes > 0 ? (wastedBytes / totalBytes) * 100 : 0;
+  };
+
+  const mapItems = (audit) => {
+    if (!audit?.details?.items) return [];
+    return audit.details.items.slice(0, 10).map((item) => ({
+      url: item.url || '',
+      totalBytes: item.totalBytes || 0,
+      wastedBytes: item.wastedBytes || 0,
+      wastedPercent: item.wastedPercent || 0,
+    }));
+  };
+
+  return {
+    unusedJs: {
+      wastedBytes: jsAudit?.details?.overallSavingsBytes || 0,
+      wastedPercentage: calculateWastedPercentage(jsAudit),
+      items: mapItems(jsAudit),
+    },
+    unusedCss: {
+      wastedBytes: cssAudit?.details?.overallSavingsBytes || 0,
+      wastedPercentage: calculateWastedPercentage(cssAudit),
+      items: mapItems(cssAudit),
+    },
+  };
+}
+
+/**
+ * Extract compression opportunities from uses-text-compression audit
+ */
+function extractCompressionStats(lhr) {
+  const audit = lhr.audits?.['uses-text-compression'];
+  return {
+    potentialSavings: audit?.details?.overallSavingsBytes || 0,
+    items: (audit?.details?.items || []).map((item) => ({
+      url: item.url || '',
+      totalBytes: item.totalBytes || 0,
+      wastedBytes: item.wastedBytes || 0,
+    })),
+    score: Math.round((audit?.score ?? 1) * 100),
+  };
+}
+
+/**
+ * Extract modern image format opportunities from modern-image-formats audit
+ */
+function extractImageFormatStats(lhr) {
+  const audit = lhr.audits?.['modern-image-formats'];
+  return {
+    potentialSavings: audit?.details?.overallSavingsBytes || 0,
+    items: (audit?.details?.items || []).map((item) => ({
+      url: item.url || '',
+      fromFormat: item.fromProtocol || 'unknown',
+      totalBytes: item.totalBytes || 0,
+      wastedBytes: item.wastedBytes || 0,
+    })),
+    score: Math.round((audit?.score ?? 1) * 100),
+  };
+}
+
+/**
  * Extract numeric value from audit
  */
 function extractNumericValue(audit, defaultValue) {
@@ -494,12 +651,12 @@ async function runAnalysis(url, chromePath, includeHtml = false) {
     const page = await activeBrowser.newPage();
     await page.setViewport({ width: 1920, height: 1080 });
 
-    // WARM NAVIGATION PATTERN (matching EcoindexApp)
-    // Step 1: Cold visit to populate cache
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 45000 });
-    await new Promise((r) => setTimeout(r, 2000));
+    // Disable cache via CDP for cold analysis (real network metrics)
+    const cdpClient = await page.createCDPSession();
+    await cdpClient.send('Network.enable');
+    await cdpClient.send('Network.setCacheDisabled', { cacheDisabled: true });
 
-    // Step 2: Start Lighthouse Flow for warm navigation
+    // COLD NAVIGATION - Direct analysis without cache
     const flow = await startFlow(page, {
       config: LIGHTHOUSE_CONFIG,
       flags: {
@@ -507,10 +664,13 @@ async function runAnalysis(url, chromePath, includeHtml = false) {
       },
     });
 
-    // Navigate with Flow API (WARM - cache is populated)
+    // Navigate with Flow API (COLD - no cache)
     await flow.navigate(url, {
       stepName: 'EcoIndex Analysis',
     });
+
+    // Capture TTFB via Navigation Timing API (more reliable than Lighthouse audits)
+    const navTiming = await captureNavigationTiming(page);
 
     // Execute scroll pattern (wait 3s -> scroll to bottom -> wait 3s)
     await executeScrollPattern(page);
@@ -549,6 +709,15 @@ async function runAnalysis(url, chromePath, includeHtml = false) {
     const a11yMetrics = extractAccessibilityMetrics(lhr);
     const otherScores = extractOtherScores(lhr);
 
+    // Extract additional audits for UI
+    // Use captured navTiming for TTFB (more reliable than Lighthouse audit in Flow mode)
+    const ttfb = navTiming
+      ? { ttfb: navTiming.ttfb, displayValue: `${navTiming.ttfb} ms` }
+      : extractTTFB(lhr); // Fallback to audit-based extraction
+    const coverage = extractCoverageStats(lhr);
+    const compression = extractCompressionStats(lhr);
+    const imageFormats = extractImageFormatStats(lhr);
+
     // Build result with raw metrics (no EcoIndex calculation)
     const analysisResult = {
       url: lhr.finalDisplayedUrl || url,
@@ -566,6 +735,10 @@ async function runAnalysis(url, chromePath, includeHtml = false) {
         ...otherScores,
       },
       accessibilityIssues: a11yMetrics.issues,
+      ttfb,
+      coverage,
+      compression,
+      imageFormats,
     };
 
     // Write HTML report to temp file if requested

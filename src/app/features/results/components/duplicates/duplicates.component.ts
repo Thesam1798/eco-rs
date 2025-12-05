@@ -24,7 +24,7 @@ import { FormatBytesPipe } from '../../../../shared/pipes/format-bytes.pipe';
           </p>
         </div>
 
-        <div class="space-y-4 max-h-[300px] overflow-y-auto">
+        <div class="space-y-4">
           @for (dup of duplicates(); track dup.filename + dup.resourceSize) {
             <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
               <div class="flex items-center justify-between mb-2">

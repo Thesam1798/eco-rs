@@ -216,6 +216,106 @@ export interface RequestAnalytics {
 }
 
 // ============================================================================
+// Additional Audit Types (enhanced UI)
+// ============================================================================
+
+/**
+ * TTFB (Time To First Byte) metrics
+ */
+export interface TtfbMetrics {
+  /** TTFB in milliseconds */
+  ttfb: number;
+  /** Display value string from Lighthouse */
+  displayValue: string;
+}
+
+/**
+ * Coverage item for unused code analysis
+ */
+export interface CoverageItem {
+  /** Full URL of the resource */
+  url: string;
+  /** Total bytes of the resource */
+  totalBytes: number;
+  /** Bytes that are unused */
+  wastedBytes: number;
+  /** Percentage of unused code */
+  wastedPercent: number;
+}
+
+/**
+ * Statistics for unused code (JS or CSS)
+ */
+export interface UnusedCodeStats {
+  /** Total wasted bytes */
+  wastedBytes: number;
+  /** Overall wasted percentage */
+  wastedPercentage: number;
+  /** Individual items with details */
+  items: CoverageItem[];
+}
+
+/**
+ * Coverage analytics (unused JS/CSS)
+ */
+export interface CoverageAnalytics {
+  /** Unused JavaScript statistics */
+  unusedJs: UnusedCodeStats;
+  /** Unused CSS statistics */
+  unusedCss: UnusedCodeStats;
+}
+
+/**
+ * Compression opportunity item
+ */
+export interface CompressionItem {
+  /** Full URL of the resource */
+  url: string;
+  /** Total bytes of the resource */
+  totalBytes: number;
+  /** Bytes savable with compression */
+  wastedBytes: number;
+}
+
+/**
+ * Compression analytics (gzip/brotli opportunities)
+ */
+export interface CompressionAnalytics {
+  /** Total potential savings in bytes */
+  potentialSavings: number;
+  /** Individual items that can be compressed */
+  items: CompressionItem[];
+  /** Compression score (0-100, 100 = fully optimized) */
+  score: number;
+}
+
+/**
+ * Image format opportunity item
+ */
+export interface ImageFormatItem {
+  /** Full URL of the image */
+  url: string;
+  /** Current format (jpeg, png, etc.) */
+  fromFormat: string;
+  /** Total bytes of the image */
+  totalBytes: number;
+  /** Bytes savable with modern formats */
+  wastedBytes: number;
+}
+
+/**
+ * Image format analytics (WebP/AVIF opportunities)
+ */
+export interface ImageFormatAnalytics {
+  /** Total potential savings in bytes */
+  potentialSavings: number;
+  /** Individual images that can be converted */
+  items: ImageFormatItem[];
+  /** Image format score (0-100, 100 = fully optimized) */
+  score: number;
+}
+
+// ============================================================================
 // Main Result Types
 // ============================================================================
 
@@ -238,4 +338,12 @@ export interface LighthouseResult {
   htmlReportPath?: string;
   /** Pre-computed request analytics */
   analytics?: RequestAnalytics;
+  /** TTFB metrics */
+  ttfb?: TtfbMetrics;
+  /** Code coverage analytics (unused JS/CSS) */
+  coverage?: CoverageAnalytics;
+  /** Compression analytics (gzip/brotli opportunities) */
+  compression?: CompressionAnalytics;
+  /** Image format analytics (WebP/AVIF opportunities) */
+  imageFormats?: ImageFormatAnalytics;
 }

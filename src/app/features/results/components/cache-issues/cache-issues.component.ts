@@ -23,7 +23,7 @@ const MS_WEEK = 604800000;
           cache &lt; 7 jours
         </div>
 
-        <div class="overflow-x-auto max-h-[250px] overflow-y-auto">
+        <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="sticky top-0 bg-white">
               <tr class="border-b border-gray-200">

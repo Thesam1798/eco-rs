@@ -24,7 +24,7 @@ pub struct DomainStat {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DomainAnalytics {
-    /// Statistics per domain, sorted by transfer size.
+    /// Statistics per domain, sorted by request count.
     pub domains: Vec<DomainStat>,
     /// Total number of requests.
     pub total_requests: u32,
@@ -68,7 +68,7 @@ impl DomainAnalytics {
         let total_size: u64 = stats_map.values().map(|(_, size)| size).sum();
 
         let mut sorted: Vec<_> = stats_map.into_iter().collect();
-        sorted.sort_by(|a, b| b.1 .1.cmp(&a.1 .1)); // Sort by transfer size descending
+        sorted.sort_by(|a, b| b.1 .0.cmp(&a.1 .0)); // Sort by request count descending
 
         let domains = sorted
             .into_iter()
@@ -145,18 +145,24 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_domains_sorted_by_size() {
+    fn test_multiple_domains_sorted_by_request_count() {
         let requests = vec![
-            make_request("small.com", 100),
-            make_request("large.com", 5000),
+            make_request("few.com", 5000),
+            make_request("many.com", 100),
+            make_request("many.com", 100),
+            make_request("many.com", 100),
+            make_request("medium.com", 1000),
             make_request("medium.com", 1000),
         ];
         let result = DomainAnalytics::compute(&requests);
 
         assert_eq!(result.domains.len(), 3);
-        // Should be sorted by transfer size descending
-        assert_eq!(result.domains[0].domain, "large.com");
+        // Should be sorted by request count descending
+        assert_eq!(result.domains[0].domain, "many.com");
+        assert_eq!(result.domains[0].request_count, 3);
         assert_eq!(result.domains[1].domain, "medium.com");
-        assert_eq!(result.domains[2].domain, "small.com");
+        assert_eq!(result.domains[1].request_count, 2);
+        assert_eq!(result.domains[2].domain, "few.com");
+        assert_eq!(result.domains[2].request_count, 1);
     }
 }

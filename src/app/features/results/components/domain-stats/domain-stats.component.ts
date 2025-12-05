@@ -26,30 +26,31 @@ const COLORS = [
       @if (domainStats().length === 0) {
         <p class="text-gray-500 text-sm">Aucune donnee disponible</p>
       } @else {
-        <div class="flex items-start gap-6">
-          <!-- Pie Chart -->
-          <div
-            class="w-32 h-32 rounded-full flex-shrink-0"
-            [style.background]="pieGradient()"
-          ></div>
-
-          <!-- Legend -->
-          <div class="flex-1 space-y-2 max-h-[200px] overflow-y-auto">
-            @for (stat of domainStats(); track stat.domain) {
-              <div class="flex items-center gap-2 text-sm">
-                <span
-                  class="w-3 h-3 rounded-full flex-shrink-0"
-                  [style.background-color]="stat.color"
-                ></span>
-                <span class="truncate flex-1 text-gray-700" [title]="stat.domain">
+        <div class="space-y-3">
+          @for (stat of domainStats(); track stat.domain) {
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-sm">
+                <span class="truncate text-gray-700 font-medium" [title]="stat.domain">
                   {{ stat.domain }}
                 </span>
-                <span class="text-gray-500 whitespace-nowrap">
+                <span class="text-gray-500 whitespace-nowrap ml-2">
+                  {{ stat.requestCount }} req ({{ stat.totalTransferSize | formatBytes }})
+                </span>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    class="h-full rounded-full transition-all duration-300"
+                    [style.width.%]="stat.percentage"
+                    [style.background-color]="stat.color"
+                  ></div>
+                </div>
+                <span class="w-12 text-right text-xs text-gray-500">
                   {{ stat.percentage | number: '1.0-1' }}%
                 </span>
               </div>
-            }
-          </div>
+            </div>
+          }
         </div>
 
         <!-- Total -->
@@ -97,7 +98,7 @@ export class DomainStatsComponent {
 
     const total = requests.length;
     const sorted = Array.from(statsMap.entries()).sort(
-      (a, b) => b[1].totalTransferSize - a[1].totalTransferSize
+      (a, b) => b[1].requestCount - a[1].requestCount
     );
 
     return sorted.map(([domain, stats], index) => ({
@@ -107,23 +108,6 @@ export class DomainStatsComponent {
       percentage: (stats.requestCount / total) * 100,
       color: COLORS[index % COLORS.length],
     }));
-  });
-
-  readonly pieGradient = computed(() => {
-    const stats = this.domainStats();
-    if (stats.length === 0) return 'transparent';
-
-    const segments: string[] = [];
-    let currentPercent = 0;
-
-    for (const stat of stats) {
-      const startPercent = currentPercent;
-      const endPercent = currentPercent + stat.percentage;
-      segments.push(`${stat.color} ${startPercent}% ${endPercent}%`);
-      currentPercent = endPercent;
-    }
-
-    return `conic-gradient(${segments.join(', ')})`;
   });
 
   readonly totalRequests = computed(() => {
