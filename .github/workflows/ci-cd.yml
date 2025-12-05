@@ -245,8 +245,8 @@ jobs:
 
       - name: Verify version in files
         run: |
-          # Check if package.json has the correct version
-          PKG_VERSION=$(node -p "require('./package.json').version")
+          # Check if package.json has the correct version (using jq)
+          PKG_VERSION=$(jq -r '.version' package.json)
           TAG_VERSION="${{ steps.version.outputs.VERSION }}"
 
           if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
