@@ -285,6 +285,18 @@ Install recommended extensions when prompted, or install manually:
 - ESLint
 - Tailwind CSS IntelliSense
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Architecture technique détaillée |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Guide de contribution |
+| [docs/API.md](docs/API.md) | Documentation des commandes Tauri |
+| [docs/FRONTEND.md](docs/FRONTEND.md) | Guide développement Angular |
+| [docs/BACKEND.md](docs/BACKEND.md) | Guide développement Rust |
+| [docs/ECOINDEX.md](docs/ECOINDEX.md) | Méthodologie EcoIndex détaillée |
+| [CLAUDE.md](CLAUDE.md) | Instructions pour Claude Code |
+
 ## License
 
 MIT
